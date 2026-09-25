@@ -21,7 +21,7 @@ import { PostFX } from './PostFX.js';
 import { DustMotes } from './DustMotes.js';
 import { FX_LAYER } from './PrecipitationOccluder.js';
 
-const MAX_FLAMES = 512;
+const MAX_FLAMES = 768;
 const REGISTER_INTERVAL = 0.5;
 /** Fog multiplier inside indoor grading zones. */
 const INDOOR_FOG = 0.25;

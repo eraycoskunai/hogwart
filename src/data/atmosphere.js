@@ -108,6 +108,8 @@ export const WEATHER = Object.freeze({
 export const GRADES = Object.freeze({
   outdoor: { exposure: 1, contrast: 1.04, saturation: 1.05, lift: [0, 0, 0], gain: [1, 1, 1], vignette: 0.28 },
   greatHall: { exposure: 1.05, contrast: 1.08, saturation: 1.1, lift: [0.015, 0.008, 0], gain: [1.08, 1.0, 0.86], vignette: 0.35 },
+  corridor: { exposure: 1.02, contrast: 1.06, saturation: 1.0, lift: [0.01, 0.006, 0], gain: [1.04, 1.0, 0.92], vignette: 0.34 },
+  library: { exposure: 1.0, contrast: 1.08, saturation: 0.92, lift: [0.012, 0.008, 0], gain: [1.08, 0.98, 0.84], vignette: 0.4 },
   dungeon: { exposure: 0.95, contrast: 1.12, saturation: 0.8, lift: [0, 0.012, 0.008], gain: [0.86, 1.02, 0.92], vignette: 0.45 },
   forest: { exposure: 0.97, contrast: 1.06, saturation: 0.92, lift: [0, 0.01, 0.015], gain: [0.9, 1.0, 1.0], vignette: 0.38 },
   night: { exposure: 1, contrast: 1.05, saturation: 0.7, lift: [0, 0.005, 0.02], gain: [0.85, 0.92, 1.08], vignette: 0.4 },

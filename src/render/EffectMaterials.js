@@ -151,15 +151,25 @@ export function createGlowMaterial(map, shared, o = {}) {
 }
 
 const GHOST_VERT = /* glsl */ `
+#include <common>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
 varying vec2 vUv;
 varying vec3 vNormalV;
 varying vec3 vViewDir;
 void main() {
   vUv = uv;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  vNormalV = normalize(normalMatrix * normal);
-  vViewDir = normalize(-mv.xyz);
-  gl_Position = projectionMatrix * mv;
+  #include <beginnormal_vertex>
+  #include <morphnormal_vertex>
+  #include <skinbase_vertex>
+  #include <skinnormal_vertex>
+  #include <defaultnormal_vertex>
+  #include <begin_vertex>
+  #include <morphtarget_vertex>
+  #include <skinning_vertex>
+  #include <project_vertex>
+  vNormalV = normalize(transformedNormal);
+  vViewDir = normalize(-mvPosition.xyz);
 }`;
 
 const GHOST_FRAG = /* glsl */ `
@@ -185,6 +195,7 @@ void main() {
 /**
  * @param {THREE.Texture} map
  * @param {{uTime:{value:number}}} shared
+ * Works on static, skinned and morphed meshes (ghost NPCs).
  * @param {{color?:number, opacity?:number, rim?:number}} o
  */
 export function createGhostMaterial(map, shared, o = {}) {

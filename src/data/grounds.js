@@ -13,6 +13,8 @@ export const GROUNDS = Object.freeze({
   spawn: { position: [104, 42, -8], yaw: Math.PI / 2 },
   /** Title-screen camera orbit around the castle. */
   menuOrbit: { center: [0, 0, 0], radius: 330, height: 120, speed: 0.02, look: [0, 48, 0] },
+  /** The Entrance Hall's great doors (north face): enter the castle interior. */
+  castleEntrance: { pos: [-15, 42, -65.6], radius: 4.2, region: 'castle' },
 });
 
 export const TERRAIN = Object.freeze({
@@ -153,13 +155,13 @@ export const GROUND_TRIGGERS = Object.freeze([
   { id: 'info:pitch', pos: [405, null, -52], size: [12, 8, 24], message: 'Quidditch sahası — sezon maçları burada oynanır.' },
   { id: 'info:viaduct', pos: [150, 42, -2], size: [10, 6, 12], message: 'Taş köprü — şatoyu doğu tepesine bağlar.' },
   { id: 'info:gate', pos: [0, 42, -126], size: [16, 8, 8], message: 'Şatonun kuzey kapısı — Hogsmeade yolu buradan iner.' },
-  { id: 'info:doors', pos: [-20, 42, -38], size: [10, 6, 6], message: 'Giriş Holü\'nün büyük kapıları şimdilik kapalı.' },
   { id: 'cinematic:grounds', pos: [96, 42, -8], size: [3, 2, 3], cinematic: 'grounds', message: 'Şato turu (Boşluk/Esc ile atla)' },
 ]);
 
 export const GROUND_TELEPORTS = Object.freeze([
   { name: 'Doğu avlusu', pos: [104, 42, -8], yaw: Math.PI / 2 },
   { name: 'Kuzey kapısı', pos: [0, 42, -128], yaw: 0 },
+  { name: 'Şato kapısı', pos: [-15, 42, -68.5], yaw: Math.PI },
   { name: 'Hogsmeade yolu', pos: [6, null, -330], yaw: 0 },
   { name: 'Taş köprü', pos: [220, 42, -6], yaw: -Math.PI / 2 },
   { name: 'Göl kıyısı', pos: [-194, null, 160], yaw: -2.37 },

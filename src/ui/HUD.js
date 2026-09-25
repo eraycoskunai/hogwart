@@ -7,6 +7,9 @@ import { ACTIONS, describeCode } from '../data/input.js';
 
 export const HUD_TIMING = Object.freeze({
   toastDuration: 5.5,
+  /** Subtitles: base seconds + seconds per character. */
+  sayBase: 2.2,
+  sayPerChar: 0.055,
   noticeDuration: 2.2,
   trailDelay: 0.45,
   trailRate: 0.9,
@@ -16,7 +19,7 @@ export const HUD_TIMING = Object.freeze({
 
 const HELP_ACTIONS = [
   'moveForward', 'moveBack', 'moveLeft', 'moveRight', 'jump', 'sprint', 'walk', 'crouch',
-  'aim', 'lockOn', 'shoulderSwap', 'quickSave', 'quickLoad', 'help', 'pause', 'debug',
+  'aim', 'lockOn', 'shoulderSwap', 'interact', 'quickSave', 'quickLoad', 'help', 'pause', 'debug',
 ];
 
 export class HUD {
@@ -41,6 +44,8 @@ export class HUD {
       <div class="hud-toasts"></div>
       <div class="hud-notice"></div>
       <div class="hud-prompt"></div>
+      <div class="hud-say"><b></b><span></span></div>
+      <div class="hud-choice"><h3></h3><p></p><div class="hud-choice-options"></div></div>
       <div class="hud-center"><h2></h2><p></p></div>
       <div class="hud-help"></div>
       <div class="hud-clock"></div>
@@ -67,7 +72,15 @@ export class HUD {
       help: q('.hud-help'),
       clock: q('.hud-clock'),
       fade: q('.hud-fade'),
+      say: q('.hud-say'),
+      sayName: q('.hud-say b'),
+      sayText: q('.hud-say span'),
+      choice: q('.hud-choice'),
+      choiceTitle: q('.hud-choice h3'),
+      choiceText: q('.hud-choice p'),
+      choiceOptions: q('.hud-choice-options'),
     };
+    this._sayTimer = 0;
 
     this._health = 1;
     this._trail = 1;
@@ -155,6 +168,47 @@ export class HUD {
     this.el.prompt.classList.toggle('show', !!text);
   }
 
+  /**
+   * Subtitle line spoken by a character (portraits, ghosts).
+   * @param {string} speaker
+   * @param {string} text
+   */
+  say(speaker, text) {
+    this.el.sayName.textContent = speaker;
+    this.el.sayText.textContent = text;
+    this.el.say.classList.add('show');
+    this._sayTimer = HUD_TIMING.sayBase + text.length * HUD_TIMING.sayPerChar;
+  }
+
+  /**
+   * Show a choice panel.
+   * @param {string} title
+   * @param {string} text
+   * @param {{id:string, label:string}[]} options
+   * @param {(id:string|null) => void} onPick
+   */
+  showChoice(title, text, options, onPick) {
+    this.el.choiceTitle.textContent = title;
+    this.el.choiceText.textContent = text;
+    const box = this.el.choiceOptions;
+    box.innerHTML = '';
+    options.forEach((o, i) => {
+      const b = document.createElement('button');
+      b.textContent = `${i + 1}. ${o.label}`;
+      b.addEventListener('click', () => onPick(o.id));
+      box.appendChild(b);
+    });
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Vazgeç (Esc)';
+    cancel.addEventListener('click', () => onPick(null));
+    box.appendChild(cancel);
+    this.el.choice.classList.add('show');
+  }
+
+  hideChoice() {
+    this.el.choice.classList.remove('show');
+  }
+
   showCenter(title, text) {
     this.el.centerTitle.textContent = title;
     this.el.centerText.textContent = text;
@@ -218,6 +272,10 @@ export class HUD {
     this.el.lbBottom.style.height = lb;
     this.el.health.classList.toggle('hidden', !s.showHealth);
 
+    if (this._sayTimer > 0) {
+      this._sayTimer -= dt;
+      if (this._sayTimer <= 0) this.el.say.classList.remove('show');
+    }
     if (this._noticeTimer > 0) {
       this._noticeTimer -= dt;
       if (this._noticeTimer <= 0) this.el.notice.classList.remove('show');

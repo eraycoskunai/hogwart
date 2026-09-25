@@ -3,7 +3,7 @@
  * fixed 1/60 s physics steps, variable-rate rendering with interpolation.
  *
  * Game flow (StateMachine): boot → creator → play ⇄ pause, play → cinematic → play,
- * boot / play → gallery, any → loading (region change) → play.
+ * boot / play → gallery, any → loading (region change) → play, play ⇄ choice.
  */
 import * as THREE from 'three';
 import { GAME } from './data/game.js';
@@ -29,6 +29,8 @@ import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { TriggerSystem } from './physics/TriggerSystem.js';
 import { Player } from './gameplay/Player.js';
 import { RegionManager } from './world/RegionManager.js';
+import { Interaction } from './gameplay/Interaction.js';
+import { describeCode } from './data/input.js';
 import { HUD } from './ui/HUD.js';
 import { PauseMenu } from './ui/PauseMenu.js';
 import { GalleryPanel } from './ui/GalleryPanel.js';
@@ -50,6 +52,8 @@ const SAVE_MIGRATIONS = Object.freeze({
   // v2 adds the created character (older saves get the default student).
   1: (d) => ({ ...d, character: null }),
 });
+/** Door transitions: seconds of fade before / after the region swap. */
+const TRAVEL_FADE = 0.35;
 /** How far the head / wand targets are projected along the view (m). */
 const VIEW_TARGET = Object.freeze({ look: 10, aim: 60, studentLook: 6, studentCone: 0.75 });
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -79,6 +83,8 @@ class Game {
     this.playtime = 0;
     this._autosaveTimer = GAME.autosaveInterval;
     this._hadPointerLock = false;
+    /** Persistent world state shared with regions (secrets, doors …); saved. */
+    this.worldState = {};
     this.toggles = { collision: false, noclip: false, god: false, hud: true, skeleton: false, ik: true, cloth: true };
     this._loop = (t) => this.frame(t);
   }
@@ -120,11 +126,20 @@ class Game {
     await nextFrame();
     this.physics = new PhysicsWorld(bus);
     this.triggers = new TriggerSystem(bus);
+    this.interactions = new Interaction(bus);
 
     const atm = this.atmosphere;
     this.regions = new RegionManager({
       scene: this.scene, physics: this.physics, triggers: this.triggers, bus, preset, library: this.library,
       lights: atm.lights, flames: atm.flames, grading: atm.grading, sky: atm.sky, renderer: this.renderer.renderer,
+      interactions: this.interactions,
+      state: this.worldState,
+      ui: {
+        say: (name, text) => this.hud?.say(name, text),
+        toast: (text, duration) => this.hud?.toast(text, duration),
+        choose: (title, text, options) => this._choose(title, text, options),
+      },
+      onExit: (to) => this._travel(to),
     });
     const [r0, r1] = BOOT_STAGES.region;
     this.room = await this.regions.load(RegionManager.defaultId, (label, t) => this._progress(label, r0 + (r1 - r0) * t));
@@ -212,6 +227,19 @@ class Game {
           g.camera.lookAt(_v.fromArray(o.look));
         },
       },
+      choice: {
+        enter: (g, _prev, c) => {
+          g.input.gameplayEnabled = false;
+          g.input.clearAll();
+          g.input.exitPointerLock();
+          g.hud.prompt('');
+          g.hud.showChoice(c.title, c.text, c.options, (id) => g._resolveChoice(id));
+        },
+        exit: (g) => g.hud.hideChoice(),
+        update: (g) => {
+          if (g.input.pressed('pause')) g._resolveChoice(null);
+        },
+      },
       loading: {
         enter: (g, _prev, label) => {
           g.input.gameplayEnabled = false;
@@ -279,6 +307,7 @@ class Game {
       },
       play: {
         enter: (g) => {
+          g._promptLabel = null;
           g.input.gameplayEnabled = true;
           g.pauseMenu.close();
           g.input.requestPointerLock();
@@ -290,6 +319,7 @@ class Game {
           g.input.gameplayEnabled = false;
           g.input.clearAll();
           g.input.exitPointerLock();
+          g.hud.prompt('');
           g.pauseMenu.open();
         },
         exit: (g) => g.pauseMenu.close(),
@@ -335,6 +365,17 @@ class Game {
     }
     if (input.pressed('shoulderSwap')) this.cameraRig.swapShoulder();
     if (input.pressed('lockOn') && !this.player.dead) this.cameraRig.toggleLock(this.room.lockTargets, this.player.position);
+
+    // "Press E" prompt for the nearest door / portrait / object.
+    const p = this.player;
+    _fwd.set(-Math.sin(p.yaw), 0, -Math.cos(p.yaw));
+    const item = p.dead ? null : this.interactions.update(p.position, _fwd);
+    const label = item ? `${describeCode(input.bindings.interact?.[0])}: ${this.interactions.label}` : '';
+    if (label !== this._promptLabel) {
+      this._promptLabel = label;
+      this.hud.prompt(label);
+    }
+    if (item && input.pressed('interact')) this.interactions.trigger();
 
     this.cameraRig.handleLook(input, this.time.unscaledDt, this.room.lockTargets, this.player.position);
     this.player.gatherInput(input, this.cameraRig);
@@ -402,6 +443,46 @@ class Game {
 
   // ------------------------------------------------------------- regions
 
+  /**
+   * Ask the player to pick an option (Room of Requirement …).
+   * @returns {Promise<string|null>}
+   */
+  _choose(title, text, options) {
+    if (!this.fsm.is('play')) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      this._choiceResolve = resolve;
+      this._choiceKeys = (e) => {
+        const n = Number(e.key);
+        if (n >= 1 && n <= options.length) this._resolveChoice(options[n - 1].id);
+      };
+      window.addEventListener('keydown', this._choiceKeys);
+      this.fsm.change('choice', { title, text, options });
+    });
+  }
+
+  _resolveChoice(id) {
+    const r = this._choiceResolve;
+    if (!r) return;
+    this._choiceResolve = null;
+    window.removeEventListener('keydown', this._choiceKeys);
+    this.fsm.change('play');
+    r(id);
+  }
+
+  /**
+   * Walk through a door into another region with a short fade.
+   * @param {{region:string, position?:number[], yaw?:number}} to
+   */
+  async _travel(to) {
+    if (this.regions.loading || !this.fsm.is('play')) return;
+    this._promptLabel = null;
+    this.hud.fadeTo(1);
+    await new Promise((r) => setTimeout(r, TRAVEL_FADE * 1000));
+    const at = to.position ? { position: new THREE.Vector3().fromArray(to.position), yaw: to.yaw ?? 0 } : undefined;
+    if (await this.switchRegion(to.region, at)) this.fsm.change('play');
+    this.hud.fadeTo(0);
+  }
+
   _loadingProgress(label, t) {
     this.loadingEl.querySelector('.loading-bar i').style.width = `${Math.round(t * 100)}%`;
     this.loadingEl.querySelector('.loading-status').textContent = label;
@@ -434,7 +515,7 @@ class Game {
     const yaw = at?.yaw ?? this.room.spawn.yaw;
     this.player.teleport(pos, yaw);
     this.cameraRig.snapTo(pos, yaw);
-    this.room.onTeleport();
+    this.room.onTeleport(pos);
     this.debug.setTeleports(this.room.teleports);
     this._spawningStudents = true;
     this.atmosphere.registerNow();
@@ -495,6 +576,7 @@ class Game {
   serialize() {
     return {
       region: this.room.id,
+      world: this.worldState,
       clock: this.clock.serialize(),
       weather: this.atmosphere.weather.serialize(),
       playtime: this.playtime,
@@ -522,7 +604,14 @@ class Game {
     }
     const d = env.data;
     const region = RegionManager.has(d.region) ? d.region : RegionManager.defaultId;
-    if (region !== this.room.id && !(await this.switchRegion(region))) return false;
+    // Rebuild the region when it or its persistent state differs from the save.
+    const world = d.world && typeof d.world === 'object' ? d.world : {};
+    const stateChanged = JSON.stringify(world) !== JSON.stringify(this.worldState);
+    if (region !== this.room.id || stateChanged) {
+      for (const k of Object.keys(this.worldState)) delete this.worldState[k];
+      Object.assign(this.worldState, structuredClone(world));
+      if (!(await this.switchRegion(region))) return false;
+    }
     this.playtime = Number(d.playtime) || 0;
     const character = sanitizeCharacter(d.character);
     if (JSON.stringify(character) !== JSON.stringify(this.characterData)) {
@@ -531,7 +620,7 @@ class Game {
       this.characterData.wand = this.player.character.data.wand;
     }
     this.player.deserialize(d.player);
-    this.room.onTeleport();
+    this.room.onTeleport(this.player.position);
     this.clock.deserialize(d.clock);
     this.atmosphere.weather.deserialize(d.weather);
     this.cameraRig.snapTo(this.player.position, Number(d.camera?.yaw) || this.player.yaw, Number(d.camera?.pitch) || CAMERA.defaultPitch);
@@ -602,7 +691,7 @@ class Game {
           if (!t) return;
           this.player.teleport(t.position, t.yaw);
           this.cameraRig.snapTo(t.position, t.yaw);
-          this.room.onTeleport();
+          this.room.onTeleport(t.position);
         },
         region: async (id) => {
           if (id === this.room.id || !(this.fsm.is('play') || this.fsm.is('pause'))) return;
@@ -735,6 +824,7 @@ class Game {
     }
     const alpha = time.computeAlpha();
     this.library.update(time.dt);
+    this.renderer.beginFrame();
     if (this.fsm.is('gallery')) {
       if (this.gallery.active) this.gallery.render();
     } else if (this.fsm.is('creator')) {
@@ -803,8 +893,8 @@ class Game {
       this.cameraRig.update(dt, player.visualPosition, { crouching: player.controller.crouching, speed: player.speed });
     }
 
-    this.room.render(this.time.elapsed, this.atmosphere.night);
-    this.room.frame(dt, this.camera, { night: this.atmosphere.night, hour: this.clock.hour, wind: this.atmosphere.weather.wind });
+    this.room.render(this.time.elapsed, this.atmosphere.night, alpha);
+    this.room.frame(dt, this.camera, { night: this.atmosphere.night, hour: this.clock.hour, wind: this.atmosphere.weather.wind, player: player.visualPosition, playerHead: _head });
     this.debugDraw.update(player.controller, player.visualPosition);
 
     let lockScreen = null;

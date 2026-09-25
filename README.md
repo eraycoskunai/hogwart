@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 5 — Şato modül kiti, Hogwarts dış mekânı, arazi, Kara Göl, Yasak Orman** (Faz 1–4 tamam)
+> **Durum: Faz 6 — Şato içi, kapılar, hareketli merdivenler, konuşan portreler, hayaletler, oda akışı** (Faz 1–5 tamam)
 
 ## Çalıştırma
 
@@ -31,6 +31,7 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 | Nişan al | Sağ tık | LT |
 | Hedefe kilitlen / bırak | Tab / orta tık (kilitliyken fareyi savurup hedef değiştir) | R3 |
 | Omuz değiştir | X | Y |
+| Etkileşim (kapı, portre, sandık, tuğla …) | E | X |
 | Hızlı kayıt / yükleme | F5 / F9 | — |
 | Kontrol listesi | H | Back |
 | Menü | Esc / P | Start |
@@ -160,12 +161,48 @@ Açılış ve *Yeni Oyun*, şatonun doğu avlusunda başlar. Her şey açılış
   ışık, alev ve renk düzeltmesi bölgeleri serbest bırakılır, kullanılmayan dokular bellekten atılır. Kayıtlar bölgeyi de saklar.
 - **Görüş mesafesi** kaliteye bağlı: 520 / 900 / 1400 / 2000 m (bitki yoğunluğu ve impostor mesafesi de ölçeklenir).
 
+## Şato içi (Faz 6)
+
+Arazideki **Giriş Holü'nün kuzey kapısında** (F3 → Işınlan → *Şato kapısı*) `E: Şatoya gir`; içeride büyük kapılardan
+`E: Dışarı çık`. Geçişler kısa bir kararma + yükleme ekranıyla yapılır (şato içi ayrı bir bölgedir).
+
+- **Odalar** (`data/interior.js`, `world/interior/`): Giriş Holü (sütunlar, avize, bina sancakları, zırhlar), Büyük Salon
+  (dört uzun masa, kürsüde öğretmen masası, baykuş kürsü, 180 süzülen mum, gerçek gökyüzünü gösteren büyülü tavan, vitraylar),
+  doğu geçidi, 4 katlı **Merdiven Kulesi**, 1–3. kat koridorları, **Kütüphane** (raflar, okuma masaları, parmaklıkla ayrılmış
+  kilitli **Yasak Bölüm**), **Karanlık Sanatlara Karşı Savunma** sınıfı (tavandan sarkan ejderha iskeleti, kara tahta),
+  **Tılsım** sınıfı, zindan merdiveni ve **İksir zindanı** (kazanlar, kavanoz rafları), **gizli geçit** + gizli oda,
+  **İhtiyaç Odası**. Duvarlar kapı/pencere açıklıklarıyla birlikte veriden kurulur; her oda malzeme başına tek çizim çağrısına
+  birleştirilir.
+- **Oda akışı (streaming) ve portal culling** (`CellStreamer`): oyuncunun bulunduğu oda ve komşuları hemen, iki kapı ötesi
+  kare başına bir oda olarak önceden kurulur; 4 kapıdan uzaktaki odalar 6 sn sonra geometri, çarpıştırıcı, ışık ve alevleriyle
+  birlikte serbest bırakılır. Çizimde kameranın odasından başlayıp yalnızca açık ve görüş alanındaki kapılardan görülen odalar
+  gösterilir, diğerlerinin ışıkları kapanır. Kapalı bir kapı arkasındaki oda çizilmez.
+- **Kapılar**: menteşeli tek/çift kanat (kinematik gövde — kapı gerçekten iter), veriden kilit (Yasak Bölüm: *Alohomora gerekir*,
+  büyüler Faz 7'de), kapı durumu kayıtta saklanır.
+- **Hareketli merdivenler**: kule boşluğunda üç kat arasında üç merdiven; 16 sn'de bir birlikte 90° döner. Her merdiven bir
+  kattan karşı kenardaki üst kata çıkar; balkonlar kat kat farklı kenarlarda olduğu için bağlantılar sırayla değişir
+  (bazen merdiven boşluğa açılır). Üzerindeki oyuncuyu döndürerek taşır.
+- **Konuşan portreler** (`PortraitPainter`, `PortraitGallery`): ~110 portre, tohumdan üretilen özgün figürler (şapka, peçe,
+  miğfer, yaka, sakal, baykuş/kedi/kitap, manzara/perde arka plan, yağlı boya dokusu ve vernik). Oda başına tek atlas doku;
+  oyuncuya en yakın 4 portre canlanır: nefes alır, sallanır, göz kırpar, gözleriyle oyuncuyu izler, konuşurken ağzı oynar.
+  Yaklaşınca selam verirler, `E` ile dedikodu anlatırlar (kanon karakterler yalnızca isim olarak geçer). 3. kattaki
+  ortak salon bekçisi portre parola sorar (bina Seçmen Şapka töreninde belli olacak).
+- **Hayaletler**: yarı saydam, sisli, kenarları parlayan özgün hayaletler (Sör Bertrand, Rahibe Eulalia, Keşiş Odo); yerden
+  süzülerek duvarların içinden geçen rotalarda dolaşır, yaklaşınca dönüp konuşur.
+- **Gizli şeyler**: 3. kat koridorundaki aşınmış tuğlaya dokununca taşlar kayıp gizli geçit açılır; boş duvarın önünde bir
+  ihtiyaç düşününce **İhtiyaç Odası** kapısı belirir: *antrenman salonu* (minderler, mankenler), *saklanma yeri* (şömine,
+  koltuklar) ya da *eşya deposu*. Oda her ziyarette istenen şekle girer. Açılan sırlar kayıtta saklanır.
+- **Etkileşim sistemi**: en yakın ve önündeki kapı/portre/sandık/tuğla için ekranda `E: …` istemi; konuşmalar altyazı olarak
+  görünür; seçimler için panel (1–3 tuşları veya fare).
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
 oyuncu durumu (zemin açısı, hız, kilit), yapay zekâ ve platform durumları, çarpışma şekilleri görünümü,
-noclip, ölümsüzlük, zaman ölçeği, bölge değiştirme, bölgeye göre ışınlanma menüsü (arazide 11 nokta), arazi LOD / ağaç / kaya / çimen
-istatistikleri, sinematik/hasar/hit-stop/sarsıntı testleri.
+noclip, ölümsüzlük, zaman ölçeği, bölge değiştirme (arazi / şato içi / test salonu), bölgeye göre ışınlanma menüsü (arazide 12,
+şato içinde 12 nokta), arazi LOD / ağaç / kaya / çimen istatistikleri; şato içinde yüklü/görünür oda, geçilen portal, akış kuyruğu,
+oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; sinematik/hasar/hit-stop/sarsıntı testleri.
+Çizim çağrıları ve üçgenler artık tüm kare boyunca (gölge ve efekt geçişleri dahil) sayılır.
 **Zaman ve hava** bölümü: saat kaydırıcısı, zaman hızı (×1 / ×10 / ×60 / ×300), hava durumu düğmeleri,
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 **Karakter** bölümü: tüm animasyonları oynatma (döngüsel olanlar ikinci tıkta durur), ifadeler, konuşma, bina renkleri, kıyafet
@@ -185,14 +222,17 @@ src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sk
                       GrassField, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
 src/physics/          Geometry (kapsül/üçgen/ışın testleri), Collider, CollisionWorld (3B uzamsal hash + DDA ışın),
                       PhysicsWorld (cannon-es rijit cisimler + kinematik platformlar), CharacterController, TriggerSystem
-src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Student (arka plan öğrencileri), TargetDummy
+src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Student (arka plan öğrencileri), Ghost, Interaction,
+                      TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
-                      geometry/CastleKit (şato modülleri), geometry/TreeGenerator (ağaç, kaya)
+                      geometry/CastleKit (şato modülleri), geometry/InteriorKit (iç mekân ve mobilya),
+                      geometry/TreeGenerator (ağaç, kaya), textures/PortraitPainter (portreler)
 src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerator, BodyGenerator, Garments + ClothGarment,
                       WandGenerator, CharacterTextures, Appearance, Hairline, MeshKit
 src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
+src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
 src/ui/               HUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
 src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, test salonu, arazi, şato, bitki örtüsü
 ```
@@ -207,7 +247,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 3. ✅ Işık, gökyüzü, gün-gece, hava durumu, post-fx, kalite ayarları
 4. ✅ Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma
 5. ✅ Şato modül kiti, Hogwarts dış mekânı, arazi, göl, orman
-6. İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming
+6. ✅ İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming
 7. Büyü sistemi, efektler, jest tanıma
 8. Savaş, düşmanlar, yapay zekâ, düello, boss
 9. Süpürge dükkânı, uçuş, yarışlar, Quidditch

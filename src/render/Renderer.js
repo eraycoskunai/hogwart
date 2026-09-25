@@ -30,7 +30,8 @@ export class Renderer {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = preset.shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.info.autoReset = true;
+    // Counted over the whole frame (scene + post passes); reset in beginFrame().
+    this.renderer.info.autoReset = false;
 
     this.width = 1;
     this.height = 1;
@@ -85,6 +86,11 @@ export class Renderer {
   }
 
   /** Renderer statistics for the debug panel. */
+  /** Start counting draw calls / triangles for a new frame. */
+  beginFrame() {
+    this.renderer.info.reset();
+  }
+
   get stats() {
     const i = this.renderer.info;
     return {

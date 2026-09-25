@@ -191,6 +191,24 @@ button.primary {
   color: var(--gold-bright); text-shadow: 0 1px 3px #000; opacity: 0; transition: opacity 0.3s; z-index: 2;
 }
 .hud-prompt.show { opacity: 1; }
+.hud-say {
+  position: absolute; left: 50%; bottom: 13%; transform: translate(-50%, 8px); width: min(760px, 92vw);
+  text-align: center; opacity: 0; transition: opacity 0.35s, transform 0.35s; font-size: 18px; line-height: 1.45;
+  color: #f1e8d6; text-shadow: 0 1px 3px #000, 0 0 12px rgba(0, 0, 0, 0.8);
+}
+.hud-say.show { opacity: 1; transform: translate(-50%, 0); }
+.hud-say b { color: var(--gold-bright); margin-right: 8px; font-variant: small-caps; }
+.hud-say b::after { content: ':'; }
+.hud-choice {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 32px));
+  padding: 20px 22px; border-radius: 8px; background: rgba(18, 14, 10, 0.92); border: 1px solid rgba(201, 162, 74, 0.5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6); display: none; pointer-events: auto; text-align: center; z-index: 3;
+}
+.hud-choice.show { display: block; }
+.hud-choice h3 { margin: 0 0 4px; color: var(--gold-bright); font-variant: small-caps; letter-spacing: 0.06em; }
+.hud-choice p { margin: 0 0 14px; color: #d8cbb8; font-style: italic; }
+.hud-choice-options { display: flex; flex-direction: column; gap: 8px; }
+.hud-choice-options button { font-size: 16px; padding: 9px 14px; }
 .hud-center { position: absolute; top: 38%; left: 0; right: 0; text-align: center; opacity: 0; transition: opacity 0.8s; z-index: 2; }
 .hud-center.show { opacity: 1; }
 .hud-center h2 { font-size: 44px; margin: 0; letter-spacing: 0.1em; color: #e8c9c0; text-shadow: 0 2px 12px #000; font-variant: small-caps; }

@@ -10,6 +10,8 @@ import { TEST_ROOM } from '../data/testRoom.js';
 import { GROUNDS } from '../data/grounds.js';
 import { TestRoom } from './TestRoom.js';
 import { HogwartsGrounds } from './grounds/HogwartsGrounds.js';
+import { INTERIOR } from '../data/interior.js';
+import { CastleInterior } from './interior/CastleInterior.js';
 import { CHARACTER_MATERIAL_KEYS } from '../procgen/characters/Character.js';
 
 /** Registry: id → how to list its materials and build it. */
@@ -19,6 +21,15 @@ const REGIONS = Object.freeze({
     keys: () => HogwartsGrounds.materialKeys(),
     create: async (ctx, progress) => {
       const r = new HogwartsGrounds(ctx);
+      await r.build(progress);
+      return r;
+    },
+  },
+  [INTERIOR.id]: {
+    name: INTERIOR.name,
+    keys: () => CastleInterior.materialKeys(),
+    create: async (ctx, progress) => {
+      const r = new CastleInterior(ctx);
       await r.build(progress);
       return r;
     },
@@ -36,7 +47,7 @@ const TEXTURE_SHARE = 0.6;
 export class RegionManager {
   /**
    * @param {object} ctx region build context (scene, physics, triggers, bus, preset, library,
-   *        lights, flames, grading, sky, renderer)
+   *        lights, flames, grading, sky, renderer, interactions, ui, state, onExit)
    */
   constructor(ctx) {
     this.ctx = ctx;

@@ -184,6 +184,15 @@ export class HogwartsGrounds {
       max: [F.center[0] + F.radii[0] * 0.9, 400, F.center[1] + F.radii[1] * 0.9],
     });
     this.spawn = { position: this._p(GROUNDS.spawn.position), yaw: GROUNDS.spawn.yaw };
+    // The great doors lead inside.
+    const E = GROUNDS.castleEntrance;
+    this.entrance = ctx.interactions?.add({
+      id: 'castle:enter',
+      position: new THREE.Vector3().fromArray(E.pos).setY(E.pos[1] + 1.2),
+      radius: E.radius,
+      label: 'Şatoya gir',
+      action: () => ctx.onExit({ region: E.region }),
+    });
     this.teleports = GROUND_TELEPORTS.map((t) => ({ name: t.name, position: this._p(t.pos), yaw: t.yaw }));
     this._studentQueue = GROUND_STUDENTS.map((s) => ({
       ...s,
@@ -287,6 +296,7 @@ export class HogwartsGrounds {
     this._offUpgrade?.();
     for (const s of this.students) s.dispose();
     for (const z of this.triggerZones) ctx.triggers.remove(z);
+    if (this.entrance) ctx.interactions.remove(this.entrance);
     this.vegetation?.dispose();
     this.grass?.dispose();
     this.props?.dispose();

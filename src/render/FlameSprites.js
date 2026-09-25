@@ -82,6 +82,8 @@ export class FlameSprites {
     /** @type {(import('./LightManager.js').LightSource|null)[]} */
     this.links = [];
     this._base = [];
+    /** Freed slots (streamed rooms remove their flames). */
+    this._free = [];
   }
 
   /**
@@ -90,8 +92,10 @@ export class FlameSprites {
    * @returns {number} instance index
    */
   add(position, o = {}) {
-    if (this.count >= this.capacity) return -1;
-    const i = this.count++;
+    let i;
+    if (this._free.length) i = this._free.pop();
+    else if (this.count < this.capacity) i = this.count++;
+    else return -1;
     const p = Array.isArray(position) ? position : position.toArray();
     this.offsets.set(p, i * 3);
     this.sizes[i * 3] = o.width ?? 0.08;
@@ -107,9 +111,23 @@ export class FlameSprites {
     return i;
   }
 
+  /**
+   * Hide a flame and free its slot.
+   * @param {number} i index returned by add()
+   */
+  remove(i) {
+    if (i < 0 || i >= this.count) return;
+    this.sizes[i * 3] = this.sizes[i * 3 + 1] = this.sizes[i * 3 + 2] = 0;
+    this._base[i] = 0;
+    this.links[i] = null;
+    this._free.push(i);
+    this.geometry.attributes.aSize.needsUpdate = true;
+  }
+
   /** Remove every flame (region unload). */
   clear() {
     this.count = 0;
+    this._free.length = 0;
     this.links.length = 0;
     this._base.length = 0;
     this.geometry.instanceCount = 0;
