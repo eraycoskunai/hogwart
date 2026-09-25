@@ -8,6 +8,8 @@ export const TEST_ROOM = {
   id: 'testRoom',
   name: 'Motor Test Salonu',
   spawn: { position: [0, 0, 14], yaw: 0 },
+  /** Title-screen camera orbit around the hall. */
+  menuOrbit: { center: [0, 0, 0], radius: 46, height: 19, speed: 0.045, look: [0, 3, -6] },
 
   /**
    * Surface materials: catalogue key (data/materials.js) + world tile size.

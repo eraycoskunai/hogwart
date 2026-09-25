@@ -28,6 +28,7 @@ export const DEBUG_UI = Object.freeze({
  * @property {() => Record<string, Record<string, string|number>>} getSections
  * @property {() => {name:string, state:string}[]} getEntities
  * @property {{name:string}[]} teleports
+ * @property {{id:string, name:string}[]} [regions]
  * @property {Record<string, (arg?:any) => any>} actions
  * @property {() => Record<string, boolean>} getToggles
  */
@@ -81,6 +82,7 @@ export class Debug {
           <button data-dbg-act="editCharacter">Karakter yaratma ekranı</button>
         </div>
       </div>
+      <div class="dbg-section"><h4>Bölge</h4><div class="dbg-regions"></div></div>
       <div class="dbg-section"><h4>Işınlan</h4><div class="dbg-teleports"></div></div>
       <div class="dbg-section"><h4>Yapay zekâ / varlıklar</h4><div class="dbg-ai"></div></div>`;
     this.graph = /** @type {HTMLCanvasElement} */ (root.querySelector('.dbg-graph'));
@@ -88,14 +90,17 @@ export class Debug {
     this.statsEl = root.querySelector('.dbg-stats');
     this.aiEl = root.querySelector('.dbg-ai');
     this.togglesEl = root.querySelector('.dbg-toggles');
-    root.querySelector('.dbg-teleports').innerHTML = provider.teleports
-      .map((t, i) => `<button data-dbg-tp="${i}">${t.name}</button>`)
+    this.teleportsEl = root.querySelector('.dbg-teleports');
+    this.setTeleports(provider.teleports);
+    root.querySelector('.dbg-regions').innerHTML = (provider.regions ?? [])
+      .map((r) => `<button data-dbg-region="${r.id}">${r.name}</button>`)
       .join('');
 
     root.addEventListener('click', (e) => {
       const b = /** @type {HTMLElement} */ (e.target).closest('button');
       if (!b) return;
       if (b.dataset.dbgTp != null) this.p.actions.teleport(Number(b.dataset.dbgTp));
+      else if (b.dataset.dbgRegion) this.p.actions.region(b.dataset.dbgRegion);
       else if (b.dataset.dbgSpeed) this.p.actions.timeSpeed(Number(b.dataset.dbgSpeed));
       else if (b.dataset.dbgWeather) this.p.actions.weather(b.dataset.dbgWeather);
       else if (b.dataset.dbgAct) this.p.actions[b.dataset.dbgAct]?.();
@@ -117,6 +122,14 @@ export class Debug {
       }
     });
     this._renderToggles();
+  }
+
+  /**
+   * Rebuild the teleport menu (after a region change).
+   * @param {{name:string}[]} list
+   */
+  setTeleports(list) {
+    this.teleportsEl.innerHTML = list.map((t, i) => `<button data-dbg-tp="${i}">${t.name}</button>`).join('');
   }
 
   toggle(force) {

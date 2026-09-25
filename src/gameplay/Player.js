@@ -53,6 +53,8 @@ export class Player {
     this._ground = makeGroundProbe(ctx.physics);
     /** World point the head turns to (set by the game each frame) or null. */
     this.lookTarget = null;
+    /** Water surface query (x, z) → height, supplied by the active region. */
+    this.waterLevelAt = null;
     /** World point the wand aims at while aiming, or null. */
     this.aimTarget = null;
     this._climb = 0;
@@ -193,12 +195,14 @@ export class Player {
     }
 
     if (this.invulnerable > 0) this.invulnerable -= dt;
-    c.wantCrouch = this.intent.crouch && !c.noclip;
+    c.wantCrouch = this.intent.crouch && !c.noclip && !c.swimming;
+    c.waterLevel = this.waterLevelAt ? this.waterLevelAt(c.position.x, c.position.z) : -Infinity;
     c.step(dt, this.intent.move, this._wishSpeed());
 
     for (const e of c.events) {
       if (e.type === 'land') this._onLand(e);
       else if (e.type === 'jump') this.bus.emit('player:jumped', {});
+      else if (e.type === 'swimStart' || e.type === 'swimEnd') this.bus.emit('player:swim', { swimming: e.type === 'swimStart' });
     }
 
     // Facing: toward movement, or toward the aim/lock yaw while strafing.
@@ -238,6 +242,7 @@ export class Player {
     const c = this.controller;
     if (this.dead) return 'dead';
     if (c.noclip) return 'fly';
+    if (c.swimming) return this.speed > 0.3 ? 'swim' : 'tread';
     if (!c.grounded) return c.velocity.y > 0 ? 'jump' : c.onSteepSlope ? 'slide' : 'fall';
     const s = this.speed;
     if (c.crouching) return s > 0.3 ? 'crouchWalk' : 'crouch';
@@ -339,7 +344,8 @@ export class Player {
       turnRate: this._turnRate,
       accel: this._accel,
       climb: this._climb,
-      sliding: c.onSteepSlope && !c.grounded,
+      sliding: c.onSteepSlope && !c.grounded && !c.swimming,
+      swimming: c.swimming && !this.dead,
       lookTarget: this.dead ? null : this.lookTarget,
       aimTarget: this.aimTarget,
       ground: c.noclip ? null : this._ground,

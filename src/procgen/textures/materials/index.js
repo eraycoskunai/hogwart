@@ -31,17 +31,19 @@ import candleFlame from './candleFlame.js';
 import magicTrail from './magicTrail.js';
 import magicInk from './magicInk.js';
 import ghost from './ghost.js';
+import roofSlate from './roofSlate.js';
+import thatch from './thatch.js';
 
 /** @type {Record<string, {id:string, label:string, category:string, variants?:string[], tiling?:boolean,
  *   normalStrength?:number, aoStrength?:number, aoRadius?:number, generate:(ctx:any)=>void}>} */
 export const GENERATORS = Object.fromEntries(
   [
-    hogwartsStone, cobblestone, flagstone, marble, rock,
+    hogwartsStone, cobblestone, flagstone, marble, rock, roofSlate,
     woodPlanks, woodParquet, bark,
     books, leather, robeFabric, tapestry, carpet,
     brass, wroughtIron, rust,
     stainedGlass,
-    grass, dirt, mud, leaves, water,
+    grass, dirt, mud, leaves, water, thatch,
     skin, hair,
     parchment, waxSeal,
     candleFlame, magicTrail, magicInk, ghost,

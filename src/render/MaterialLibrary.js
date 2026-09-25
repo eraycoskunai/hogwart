@@ -335,6 +335,24 @@ export class MaterialLibrary {
     }
   }
 
+  /**
+   * Free cached texture sets nothing references any more (after a region
+   * change). They are regenerated from the persistent cache on demand.
+   * @param {Iterable<string>} [keep] keys to keep cached even when unused
+   * @returns {number} sets freed
+   */
+  purgeUnused(keep = []) {
+    const kept = new Set(keep);
+    let n = 0;
+    for (const [key, entry] of this.textures) {
+      if (entry.refs > 0 || kept.has(key)) continue;
+      for (const t of Object.values(entry.tex)) t.dispose();
+      this.textures.delete(key);
+      n++;
+    }
+    return n;
+  }
+
   /** @param {number} w 0 dry … 1 soaked */
   setWetness(w) {
     this.shared.uWetness.value = THREE.MathUtils.clamp(w, 0, 1);

@@ -40,6 +40,8 @@ export class Atmosphere {
     this.scene = scene;
     this.camera = camera;
     this.clock = o.clock;
+    /** Outdoor fog multiplier set by the current region (wide valleys see farther). */
+    this.fogScale = 1;
     this.preset = preset;
     this.time = 0;
 
@@ -106,7 +108,7 @@ export class Atmosphere {
       cloudOffset: this.weather.cloudOffset,
       lightning: this.weather.flash ?? 0,
       fogColor: this.lighting.fogColor,
-      horizonFog: 0.3 + w.fog * 0.6,
+      horizonFog: Math.min(1, 0.3 + w.fog * 0.6 + w.cloud * 0.5),
     });
   }
 
@@ -152,7 +154,7 @@ export class Atmosphere {
       hemi.intensity = THREE.MathUtils.lerp(hemi.intensity, this._ambient.intensity, this._interior);
     }
     this.scene.fog.color.copy(this.lighting.fogColor);
-    this.scene.fog.density = w.fogDensity(this.preset.fogDensityScale) * (indoor ? INDOOR_FOG : 1);
+    this.scene.fog.density = w.fogDensity(this.preset.fogDensityScale) * (indoor ? INDOOR_FOG : this.fogScale);
 
     if (this.env.update(dt)) this.scene.environment = this.env.texture;
     this.lights.update(dt, cam.position);

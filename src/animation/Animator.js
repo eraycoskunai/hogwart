@@ -50,6 +50,7 @@ const UPPER_MASK = (() => {
  * @property {number} accel forward acceleration (m/s²)
  * @property {number} climb ground rise per metre travelled
  * @property {boolean} sliding
+ * @property {boolean} [swimming]
  * @property {THREE.Vector3|null} lookTarget
  * @property {THREE.Vector3|null} aimTarget
  * @property {((x:number, y:number, z:number, len:number, out:{y:number, normal:THREE.Vector3}) => boolean)|null} ground
@@ -65,7 +66,7 @@ export class Animator {
     this.face = face ?? null;
     this.phase = 0;
     this.time = 0;
-    this.w = { move: 0, air: 0, crouch: 0, stairs: 0, slide: 0, land: 0, aim: 0, foot: 0, look: 0 };
+    this.w = { move: 0, air: 0, crouch: 0, stairs: 0, slide: 0, land: 0, aim: 0, foot: 0, look: 0, swim: 0 };
     /** @type {{clip:any, name:string, t:number, w:number, fadeIn:number, fadeOut:number, speed:number, loop:boolean, out:boolean, fired:Set<string>}[]} */
     this.actions = [];
     this.pose = new Pose();
@@ -160,7 +161,8 @@ export class Animator {
 
     // ---- layer weights
     W.move += ((s.grounded ? Math.min(1, s.speed / sp.walk) : 0) - W.move) * damp(A.blend.move, dt);
-    W.air += ((s.grounded ? 0 : 1) - W.air) * damp(A.blend.air, dt);
+    W.air += ((s.grounded || s.swimming ? 0 : 1) - W.air) * damp(A.blend.air, dt);
+    W.swim += ((s.swimming ? 1 : 0) - W.swim) * damp(A.blend.swim, dt);
     W.crouch += ((s.crouching ? 1 : 0) - W.crouch) * damp(A.blend.crouch, dt);
     const climbing = s.grounded ? THREE.MathUtils.smoothstep(s.climb, A.stairsRise[0], A.stairsRise[1]) : 0;
     W.stairs += (climbing - W.stairs) * damp(A.blend.stairs, dt);
@@ -181,7 +183,8 @@ export class Animator {
     let stride = THREE.MathUtils.lerp(strideOf(a1), strideOf(a2), k);
     if (W.crouch > 0.5) stride = C.crouchWalk.stride;
     else if (W.stairs > 0.5) stride = C.stairsUp.stride;
-    if (s.grounded) this.phase = (this.phase + (v / stride) * dt) % 1;
+    if (W.swim > 0.5) stride = C.swim.stride;
+    if (s.grounded || s.swimming) this.phase = (this.phase + (v / stride) * dt) % 1;
     this.locomotionLabel = k > 0.5 ? a2 : a1;
 
     const pose = this.pose;
@@ -201,6 +204,12 @@ export class Animator {
       const kf = THREE.MathUtils.clamp((A.jumpToFall[0] - s.vy) / (A.jumpToFall[0] - A.jumpToFall[1]), 0, 1);
       if (kf > 0) this._a.blend(sampleClip(C.fall, this.time / C.fall.duration, this._b), kf);
       pose.blend(this._a, W.air);
+    }
+    if (W.swim > 0.01) {
+      sampleClip(C.swimTread, this.time / C.swimTread.duration, this._a);
+      const ks = Math.min(1, v / A.swimSpeed);
+      if (ks > 0) this._a.blend(sampleClip(C.swim, this.phase, this._b), ks);
+      pose.blend(this._a, W.swim);
     }
     if (W.land > 0.01) pose.blend(sampleClip(C.land, 0, this._a), W.land);
 

@@ -141,6 +141,21 @@ export const CLIPS = {
       { t: 0.5, hips: [0, -0.13, 0], bones: { hips: [0, 30, 0], spine: [7, -12, 2], chest: [2, -8, 0], head: [5, -12, 0], thighR: [28, 0, 8], shinR: [-40, 0, 0], thighL: [-4, 0, -8], shinL: [-26, 0, 0], upperArmR: [22, 0, 58], foreArmR: [18, 0, 0], upperArmL: [44, 0, -40], foreArmL: [26, 0, 0] } },
     ],
   },
+  // ----------------------------------------------------------- swimming
+  swimTread: {
+    duration: 2.2, loop: true, mask: 'full',
+    keys: [
+      { t: 0, hips: [0, 0.04, 0], bones: { spine: [-6, 0, 0], head: [10, 0, 0], thighR: [34, 0, 6], shinR: [-62, 0, 0], footR: [-20, 0, 0], thighL: [8, 0, -6], shinL: [-30, 0, 0], footL: [-24, 0, 0], upperArmR: [30, 0, 52], foreArmR: [34, 0, 0], handR: [0, 0, 10], upperArmL: [24, 0, -62], foreArmL: [26, 0, 0], handL: [0, 0, -10] } },
+      { t: 0.5, hips: [0, 0.07, 0], bones: { spine: [-5, 0, 0], head: [8, 0, 0], thighR: [8, 0, 6], shinR: [-30, 0, 0], footR: [-24, 0, 0], thighL: [34, 0, -6], shinL: [-62, 0, 0], footL: [-20, 0, 0], upperArmR: [24, 0, 62], foreArmR: [26, 0, 0], handR: [0, 0, -10], upperArmL: [30, 0, -52], foreArmL: [34, 0, 0], handL: [0, 0, 10] } },
+    ],
+  },
+  swim: {
+    duration: 1.4, loop: true, mirror: true, stride: 2.4, mask: 'full',
+    keys: [
+      { t: 0, hips: [0, 0.3, 0.1], bones: { hips: [-52, 0, 0], spine: [-4, 6, 0], chest: [-2, 6, 0], head: [44, -8, 0], upperArmR: [168, 0, 8], foreArmR: [8, 0, 0], upperArmL: [-18, 0, -18], foreArmL: [24, 0, 0], thighR: [10, 0, 3], shinR: [-18, 0, 0], footR: [-50, 0, 0], thighL: [-10, 0, -3], shinL: [-6, 0, 0], footL: [-50, 0, 0] } },
+      { t: 0.25, hips: [0, 0.3, 0.1], bones: { hips: [-52, 0, 0], spine: [-4, 0, 0], chest: [-2, 0, 0], head: [44, 0, 0], upperArmR: [96, 0, 16], foreArmR: [34, 0, 0], upperArmL: [60, 0, -84], foreArmL: [60, 0, 0], thighR: [-10, 0, 3], shinR: [-6, 0, 0], footR: [-50, 0, 0], thighL: [10, 0, -3], shinL: [-18, 0, 0], footL: [-50, 0, 0] } },
+    ],
+  },
   sit: {
     duration: 4, loop: true, mask: 'full',
     keys: [
@@ -324,7 +339,9 @@ export const ANIMATOR = Object.freeze({
   speeds: { idle: 0, walk: 2.0, run: 4.6, sprint: 7.4 },
   crouchSpeed: 1.7,
   /** Blend rates (1/s). */
-  blend: { move: 9, air: 10, crouch: 9, stairs: 6, slide: 6, pose: 6 },
+  blend: { move: 9, air: 10, crouch: 9, stairs: 6, slide: 6, pose: 6, swim: 4 },
+  /** Speed (m/s) at which the forward swim stroke fully replaces treading water. */
+  swimSpeed: 2.1,
   fade: { in: 0.18, out: 0.25 },
   /** Vertical speed (m/s) mapping jump → fall. */
   jumpToFall: [2.5, -3],

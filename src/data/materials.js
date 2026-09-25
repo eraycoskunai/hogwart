@@ -35,6 +35,8 @@ export const MATERIALS = {
   'marble:black': { type: 'physical', tile: 3, triplanar: true, physical: { clearcoat: 0.7, clearcoatRoughness: 0.1 }, surface: { variation: 0.1, dirt: 0.08, wet: 0.2 } },
   'marble:green': { type: 'physical', tile: 3, triplanar: true, physical: { clearcoat: 0.6, clearcoatRoughness: 0.12 }, surface: { variation: 0.12, dirt: 0.1, wet: 0.2 } },
   rock: { type: 'standard', tile: 6, triplanar: true, surface: { variation: 0.6, dirt: 0.3, moss: 0.5, damp: 0.3, wet: 1 } },
+  roofSlate: { type: 'standard', tile: 2.2, triplanar: false, surface: { variation: 0.35, dirt: 0.2, moss: 0.25, wet: 1 } },
+  thatch: { type: 'standard', tile: 1.6, triplanar: false, surface: { variation: 0.3, dirt: 0.2, moss: 0.2, wet: 0.8 } },
 
   // -------------------------------------------------------------- wood
   woodPlanks: { type: 'physical', tile: 2.5, triplanar: false, physical: { clearcoat: 0.25, clearcoatRoughness: 0.45 }, surface: { variation: 0.3, dirt: 0.3, wet: 0.7 } },

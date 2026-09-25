@@ -2,7 +2,9 @@
  * @file CollisionWorld — triangle collision database with a 3D spatial hash
  * for static geometry and brute-force (AABB-culled) lists for moving shapes.
  * Serves capsule overlap queries (character controller) and raycasts
- * (camera, AI line of sight, spell aiming).
+ * (camera, AI line of sight, spell aiming). Terrain is a heightfield:
+ * its triangles are generated on the fly for the cells a query touches,
+ * so kilometre-sized landscapes cost no triangle storage.
  */
 import * as THREE from 'three';
 import { capsuleTriangle, capsuleSphere, rayTriangle, raySphere, rayAABB } from './Geometry.js';
@@ -58,6 +60,8 @@ export class CollisionWorld {
     this.staticColliders = [];
     /** @type {import('./Collider.js').Collider[]} */
     this.moving = [];
+    /** @type {Heightfield[]} */
+    this.heightfields = [];
     this._dirtyStatic = false;
 
     // Contact pool
@@ -72,6 +76,134 @@ export class CollisionWorld {
     this._min = new THREE.Vector3();
     this._max = new THREE.Vector3();
     this._tmpContact = { normal: new THREE.Vector3(), point: new THREE.Vector3(), depth: 0 };
+    this._e1 = new THREE.Vector3();
+    this._e2 = new THREE.Vector3();
+  }
+
+  // ------------------------------------------------------------ heightfields
+
+  /**
+   * Register terrain heights.
+   * @param {{x0:number, z0:number, cell:number, nx:number, nz:number, heights:Float32Array,
+   *          name?:string, surface?:string}} o samples laid out row by row (z), nx per row
+   * @returns {Heightfield}
+   */
+  addHeightfield(o) {
+    const hf = new Heightfield(o);
+    this.heightfields.push(hf);
+    return hf;
+  }
+
+  /** @param {Heightfield} hf */
+  removeHeightfield(hf) {
+    const i = this.heightfields.indexOf(hf);
+    if (i >= 0) this.heightfields.splice(i, 1);
+  }
+
+  /** Load cell triangle k (0/1) of heightfield cell (i, j) into _v0.._v2 / _n. */
+  _loadHfTri(hf, i, j, k) {
+    const c = hf.cell;
+    const x = hf.x0 + i * c;
+    const z = hf.z0 + j * c;
+    const H = hf.heights;
+    const w = hf.nx;
+    const h00 = H[j * w + i];
+    const h10 = H[j * w + i + 1];
+    const h01 = H[(j + 1) * w + i];
+    const h11 = H[(j + 1) * w + i + 1];
+    if (k === 0) {
+      this._v0.set(x, h00, z);
+      this._v1.set(x, h01, z + c);
+      this._v2.set(x + c, h10, z);
+    } else {
+      this._v0.set(x + c, h10, z);
+      this._v1.set(x, h01, z + c);
+      this._v2.set(x + c, h11, z + c);
+    }
+    this._e1.subVectors(this._v1, this._v0);
+    this._e2.subVectors(this._v2, this._v0);
+    this._n.crossVectors(this._e1, this._e2).normalize();
+  }
+
+  _hfContacts(a, b, r, min, max, filter, out, tmp) {
+    for (const hf of this.heightfields) {
+      if (!this._passes(hf, filter)) continue;
+      const [i0, i1, j0, j1] = hf.cellRange(min.x, min.z, max.x, max.z);
+      for (let j = j0; j <= j1; j++) {
+        for (let i = i0; i <= i1; i++) {
+          if (hf.cellMaxHeight(i, j) < min.y) continue;
+          for (let k = 0; k < 2; k++) {
+            this._loadHfTri(hf, i, j, k);
+            if (capsuleTriangle(a, b, r, this._v0, this._v1, this._v2, this._n, tmp)) this._pushContact(out, tmp, hf);
+          }
+        }
+      }
+    }
+  }
+
+  /** 2D DDA across heightfield cells; returns the nearest hit distance. */
+  _hfRaycast(hf, origin, dir, maxDist) {
+    const c = hf.cell;
+    // Clip the ray to the heightfield rectangle.
+    let t0 = 0;
+    let t1 = maxDist;
+    const bx0 = hf.x0, bx1 = hf.x0 + (hf.nx - 1) * c;
+    const bz0 = hf.z0, bz1 = hf.z0 + (hf.nz - 1) * c;
+    for (const [o, d, lo, hi] of [[origin.x, dir.x, bx0, bx1], [origin.z, dir.z, bz0, bz1]]) {
+      if (Math.abs(d) < 1e-12) {
+        if (o < lo || o > hi) return -1;
+        continue;
+      }
+      let ta = (lo - o) / d;
+      let tb = (hi - o) / d;
+      if (ta > tb) [ta, tb] = [tb, ta];
+      t0 = Math.max(t0, ta);
+      t1 = Math.min(t1, tb);
+    }
+    if (t0 > t1) return -1;
+    const px = origin.x + dir.x * t0;
+    const pz = origin.z + dir.z * t0;
+    let i = Math.min(hf.nx - 2, Math.max(0, Math.floor((px - hf.x0) / c)));
+    let j = Math.min(hf.nz - 2, Math.max(0, Math.floor((pz - hf.z0) / c)));
+    const si = dir.x > 0 ? 1 : -1;
+    const sj = dir.z > 0 ? 1 : -1;
+    const big = 1e30;
+    const tdi = Math.abs(dir.x) > 1e-12 ? c / Math.abs(dir.x) : big;
+    const tdj = Math.abs(dir.z) > 1e-12 ? c / Math.abs(dir.z) : big;
+    let tmi = Math.abs(dir.x) > 1e-12 ? (hf.x0 + (i + (si > 0 ? 1 : 0)) * c - origin.x) / dir.x : big;
+    let tmj = Math.abs(dir.z) > 1e-12 ? (hf.z0 + (j + (sj > 0 ? 1 : 0)) * c - origin.z) / dir.z : big;
+    const maxSteps = hf.nx + hf.nz;
+    for (let n = 0; n < maxSteps; n++) {
+      let best = -1;
+      for (let k = 0; k < 2; k++) {
+        this._loadHfTri(hf, i, j, k);
+        const t = rayTriangle(origin, dir, this._v0, this._v1, this._v2);
+        if (t >= 0 && t <= maxDist && (best < 0 || t < best)) best = t;
+      }
+      if (best >= 0) return best;
+      const tNext = Math.min(tmi, tmj);
+      if (tNext > t1) break;
+      if (tmi <= tmj) {
+        i += si;
+        tmi += tdi;
+      } else {
+        j += sj;
+        tmj += tdj;
+      }
+      if (i < 0 || j < 0 || i > hf.nx - 2 || j > hf.nz - 2) break;
+    }
+    return -1;
+  }
+
+  /**
+   * Terrain height at (x, z) or -Infinity outside every heightfield.
+   * @param {number} x
+   * @param {number} z
+   */
+  terrainHeight(x, z) {
+    let best = -Infinity;
+    for (const hf of this.heightfields) best = Math.max(best, hf.heightAt(x, z));
+    return best;
   }
 
   // ------------------------------------------------------------ registration
@@ -294,6 +426,8 @@ export class CollisionWorld {
       });
     }
 
+    if (filter.static !== false && this.heightfields.length) this._hfContacts(a, b, r, min, max, filter, out, tmp);
+
     for (const col of this.moving) {
       if (!this._passes(col, filter) || !col.overlapsAABB(min, max)) continue;
       if (col.shape === 'sphere') {
@@ -342,6 +476,20 @@ export class CollisionWorld {
       }
     }
 
+    let bestHf = null;
+    if (filter.static !== false) {
+      for (const hf of this.heightfields) {
+        if (!this._passes(hf, filter)) continue;
+        const t = this._hfRaycast(hf, origin, dir, best);
+        if (t >= 0 && t < best) {
+          best = t;
+          bestHf = hf;
+          bestCollider = hf;
+          bestTri = -1;
+        }
+      }
+    }
+
     for (const col of this.moving) {
       if (!this._passes(col, filter)) continue;
       const entry = rayAABB(origin, dir, col.aabbMin, col.aabbMax, best);
@@ -354,6 +502,7 @@ export class CollisionWorld {
           bestMoving = col;
           bestMovingTri = -1;
           bestTri = -1;
+          bestHf = null;
         }
         continue;
       }
@@ -367,6 +516,7 @@ export class CollisionWorld {
           bestMoving = col;
           bestMovingTri = t;
           bestTri = -1;
+          bestHf = null;
         }
       }
     }
@@ -376,7 +526,9 @@ export class CollisionWorld {
     hit.distance = best;
     hit.point.copy(origin).addScaledVector(dir, best);
     hit.collider = bestCollider;
-    if (bestMoving) {
+    if (bestHf) {
+      bestHf.normalAt(hit.point.x, hit.point.z, hit.normal);
+    } else if (bestMoving) {
       if (bestMovingTri >= 0) {
         this._loadMovingTri(bestMoving, bestMovingTri);
         hit.normal.copy(this._n);
@@ -452,6 +604,79 @@ export class CollisionWorld {
       staticTriangles: this.triCount,
       cells: this.grid.size,
       moving: this.moving.length,
+      heightfields: this.heightfields.length,
     };
+  }
+}
+
+let _hfId = 1 << 24;
+
+/** Regular grid of terrain heights acting as a static collider. */
+export class Heightfield {
+  constructor(o) {
+    this.id = _hfId++;
+    this.kind = 'static';
+    this.shape = 'heightfield';
+    this.enabled = true;
+    this.cameraBlocking = true;
+    this.name = o.name ?? 'Arazi';
+    this.surface = o.surface ?? 'grass';
+    this.userData = {};
+    this.x0 = o.x0;
+    this.z0 = o.z0;
+    this.cell = o.cell;
+    this.nx = o.nx;
+    this.nz = o.nz;
+    this.heights = o.heights;
+    // Per-cell max height (fast rejection).
+    const cx = o.nx - 1;
+    const cz = o.nz - 1;
+    this.cellMax = new Float32Array(cx * cz);
+    const H = o.heights;
+    for (let j = 0; j < cz; j++) {
+      for (let i = 0; i < cx; i++) {
+        this.cellMax[j * cx + i] = Math.max(H[j * o.nx + i], H[j * o.nx + i + 1], H[(j + 1) * o.nx + i], H[(j + 1) * o.nx + i + 1]);
+      }
+    }
+  }
+
+  cellMaxHeight(i, j) {
+    return this.cellMax[j * (this.nx - 1) + i];
+  }
+
+  /** Clamped cell index range overlapping a rectangle. */
+  cellRange(minX, minZ, maxX, maxZ) {
+    const c = this.cell;
+    const i0 = Math.max(0, Math.floor((minX - this.x0) / c));
+    const i1 = Math.min(this.nx - 2, Math.floor((maxX - this.x0) / c));
+    const j0 = Math.max(0, Math.floor((minZ - this.z0) / c));
+    const j1 = Math.min(this.nz - 2, Math.floor((maxZ - this.z0) / c));
+    return [i0, i1, j0, j1];
+  }
+
+  /** Height on the triangulated surface (-Infinity outside). */
+  heightAt(x, z) {
+    const fx = (x - this.x0) / this.cell;
+    const fz = (z - this.z0) / this.cell;
+    if (fx < 0 || fz < 0 || fx > this.nx - 1 || fz > this.nz - 1) return -Infinity;
+    const i = Math.min(this.nx - 2, Math.floor(fx));
+    const j = Math.min(this.nz - 2, Math.floor(fz));
+    const u = fx - i;
+    const v = fz - j;
+    const H = this.heights;
+    const w = this.nx;
+    const h00 = H[j * w + i], h10 = H[j * w + i + 1], h01 = H[(j + 1) * w + i], h11 = H[(j + 1) * w + i + 1];
+    // Same diagonal as the collision triangles (h10 – h01).
+    if (u + v <= 1) return h00 + (h10 - h00) * u + (h01 - h00) * v;
+    return h11 + (h01 - h11) * (1 - u) + (h10 - h11) * (1 - v);
+  }
+
+  /** Surface normal at (x, z). @param {THREE.Vector3} out */
+  normalAt(x, z, out) {
+    const e = this.cell;
+    const hl = this.heightAt(x - e, z), hr = this.heightAt(x + e, z);
+    const hd = this.heightAt(x, z - e), hu = this.heightAt(x, z + e);
+    if (!Number.isFinite(hl + hr + hd + hu)) return out.set(0, 1, 0);
+    return out.set(hl - hr, 2 * e, hd - hu).normalize();
   }
 }

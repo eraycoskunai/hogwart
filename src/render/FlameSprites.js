@@ -107,6 +107,14 @@ export class FlameSprites {
     return i;
   }
 
+  /** Remove every flame (region unload). */
+  clear() {
+    this.count = 0;
+    this.links.length = 0;
+    this._base.length = 0;
+    this.geometry.instanceCount = 0;
+  }
+
   /** Move a flame (floating candles). */
   setPosition(i, x, y, z) {
     this.offsets[i * 3] = x;

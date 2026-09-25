@@ -203,7 +203,8 @@ vec3 skyRadiance(vec3 dir) {
   col += vec3(0.45, 0.5, 0.65) * uLightning * 0.3;
 
   // Blend into the fog colour at the horizon; darker ground below it.
-  float hz = 1.0 - smoothstep(-0.02, 0.3, dir.y);
+  // Overcast skies blend higher so fogged mountains meet the cloud deck.
+  float hz = 1.0 - smoothstep(-0.02, 0.3 + uCloudCover * 0.45, dir.y);
   col = mix(col, uFogColor, hz * uHorizonFog);
   if (dir.y < 0.0) col = mix(col, uFogColor * 0.6, smoothstep(0.0, -0.3, dir.y));
   return col;

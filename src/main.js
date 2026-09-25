@@ -3,14 +3,14 @@
  * fixed 1/60 s physics steps, variable-rate rendering with interpolation.
  *
  * Game flow (StateMachine): boot → creator → play ⇄ pause, play → cinematic → play,
- * boot / play → gallery.
+ * boot / play → gallery, any → loading (region change) → play.
  */
 import * as THREE from 'three';
 import { GAME } from './data/game.js';
 import { CAMERA } from './data/camera.js';
 import { PLAYER } from './data/physics.js';
 import { QUALITY_PRESETS } from './data/quality.js';
-import { TEST_ROOM } from './data/testRoom.js';
+import { LAKE } from './data/grounds.js';
 import { bus } from './core/EventBus.js';
 import { StateMachine } from './core/StateMachine.js';
 import { Settings } from './core/Settings.js';
@@ -28,7 +28,7 @@ import { DebugDraw } from './render/DebugDraw.js';
 import { PhysicsWorld } from './physics/PhysicsWorld.js';
 import { TriggerSystem } from './physics/TriggerSystem.js';
 import { Player } from './gameplay/Player.js';
-import { TestRoom } from './world/TestRoom.js';
+import { RegionManager } from './world/RegionManager.js';
 import { HUD } from './ui/HUD.js';
 import { PauseMenu } from './ui/PauseMenu.js';
 import { GalleryPanel } from './ui/GalleryPanel.js';
@@ -44,7 +44,7 @@ import { CreatorStage } from './world/CreatorStage.js';
 import { CharacterCreator } from './ui/CharacterCreator.js';
 
 /** Boot progress-bar ranges for each loading stage. */
-const BOOT_STAGES = Object.freeze({ textures: [0.12, 0.72] });
+const BOOT_STAGES = Object.freeze({ textures: [0.12, 0.3], region: [0.36, 0.86] });
 /** Save layout migrations: version → upgrade to the next version. */
 const SAVE_MIGRATIONS = Object.freeze({
   // v2 adds the created character (older saves get the default student).
@@ -52,7 +52,6 @@ const SAVE_MIGRATIONS = Object.freeze({
 });
 /** How far the head / wand targets are projected along the view (m). */
 const VIEW_TARGET = Object.freeze({ look: 10, aim: 60, studentLook: 6, studentCone: 0.75 });
-const MENU_ORBIT = Object.freeze({ radius: 46, height: 19, speed: 0.045, look: [0, 3, -6] });
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const _v = new THREE.Vector3();
 const _focus = new THREE.Vector3();
@@ -76,6 +75,7 @@ class Game {
     this.cache = new AssetCache();
     this.canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
     this.bootEl = document.getElementById('boot');
+    this.loadingEl = document.getElementById('loading');
     this.playtime = 0;
     this._autosaveTimer = GAME.autosaveInterval;
     this._hadPointerLock = false;
@@ -107,33 +107,36 @@ class Game {
       this._progress(`Dokular üretiliyor… ${done} / ${total}`, p0 + (p1 - p0) * (total ? done / total : 1));
     });
     const t0 = performance.now();
-    await this.library.load([...new Set([...TestRoom.materialKeys(TEST_ROOM), ...CHARACTER_MATERIAL_KEYS])], 'Dokular');
+    // Materials every region shares: the student and the flame sprites.
+    await this.library.load([...CHARACTER_MATERIAL_KEYS, 'candleFlame'], 'Dokular');
     offProgress();
-    this.textureLoadMs = performance.now() - t0;
 
     // Time of day, sky, lighting, weather and post-processing.
     this.clock = new GameClock(bus);
     this.atmosphere = new Atmosphere({ renderer: this.renderer, scene: this.scene, camera: this.camera, bus, settings: this.settings, library: this.library, clock: this.clock });
-    this.atmosphere.initFlames(this.library.textures.get('candleFlame').tex.albedo);
+    this.atmosphere.initFlames(this.library.acquireTextures('candleFlame').albedo);
 
-    this._progress('Fizik dünyası kuruluyor…', 0.75);
+    this._progress('Fizik dünyası kuruluyor…', 0.32);
     await nextFrame();
     this.physics = new PhysicsWorld(bus);
     this.triggers = new TriggerSystem(bus);
 
-    this._progress('Test salonu ve öğrenciler hazırlanıyor…', 0.8);
-    await nextFrame();
     const atm = this.atmosphere;
-    this.room = new TestRoom({
+    this.regions = new RegionManager({
       scene: this.scene, physics: this.physics, triggers: this.triggers, bus, preset, library: this.library,
-      lights: atm.lights, flames: atm.flames, grading: atm.grading, sky: atm.sky,
-    }, TEST_ROOM).build();
+      lights: atm.lights, flames: atm.flames, grading: atm.grading, sky: atm.sky, renderer: this.renderer.renderer,
+    });
+    const [r0, r1] = BOOT_STAGES.region;
+    this.room = await this.regions.load(RegionManager.defaultId, (label, t) => this._progress(label, r0 + (r1 - r0) * t));
+    this.textureLoadMs = performance.now() - t0;
+    this._applyRegionView();
 
     this._progress('Karakter hazırlanıyor…', 0.88);
     await nextFrame();
     this.player = new Player({ bus, physics: this.physics, settings: this.settings, scene: this.scene, library: this.library, preset, character: this.characterData });
     // Keep the wand rolled for this student.
     this.characterData.wand = this.player.character.data.wand;
+    this.player.waterLevelAt = (x, z) => this.room.waterLevelAt(x, z);
     this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
     this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
     this.atmosphere.registerNow();
@@ -150,8 +153,8 @@ class Game {
       saves: this.saves,
       onResume: () => this.fsm.change('play'),
       onSave: (slot) => this.saveGame(slot, `Yuva ${slot}`),
-      onLoad: (slot) => {
-        if (this.loadGame(slot)) this.fsm.change('play');
+      onLoad: async (slot) => {
+        if (await this.loadGame(slot)) this.fsm.change('play');
       },
     });
     this.gallery = new MaterialGallery({ renderer: this.renderer, library: this.library, bus });
@@ -202,10 +205,27 @@ class Game {
           g.cameraRig.blendFromCurrent(1.4);
         },
         update: (g, dt) => {
-          g._menuAngle += dt * MENU_ORBIT.speed;
+          const o = g.room.menuOrbit;
+          g._menuAngle += dt * o.speed;
           const a = g._menuAngle;
-          g.camera.position.set(Math.sin(a) * MENU_ORBIT.radius, MENU_ORBIT.height, Math.cos(a) * MENU_ORBIT.radius);
-          g.camera.lookAt(_v.fromArray(MENU_ORBIT.look));
+          g.camera.position.set(o.center[0] + Math.sin(a) * o.radius, o.center[1] + o.height, o.center[2] + Math.cos(a) * o.radius);
+          g.camera.lookAt(_v.fromArray(o.look));
+        },
+      },
+      loading: {
+        enter: (g, _prev, label) => {
+          g.input.gameplayEnabled = false;
+          g.input.clearAll();
+          g.input.exitPointerLock();
+          g.hud.setVisible(false);
+          g.pauseMenu.close();
+          g.loadingEl.querySelector('.loading-title').textContent = label ?? '';
+          g._loadingProgress('', 0);
+          g.loadingEl.classList.add('show');
+        },
+        exit: (g) => {
+          g.loadingEl.classList.remove('show');
+          g.hud.setVisible(g.toggles.hud);
         },
       },
       creator: {
@@ -308,7 +328,11 @@ class Game {
     }
     if (input.pressed('help')) this.hud.toggleHelp();
     if (input.pressed('quickSave')) this.saveGame('auto', 'Hızlı kayıt');
-    if (input.pressed('quickLoad')) this.loadGame('auto');
+    if (input.pressed('quickLoad')) {
+      this.loadGame('auto').then((ok) => {
+        if (ok && !this.fsm.is('play')) this.fsm.change('play');
+      });
+    }
     if (input.pressed('shoulderSwap')) this.cameraRig.swapShoulder();
     if (input.pressed('lockOn') && !this.player.dead) this.cameraRig.toggleLock(this.room.lockTargets, this.player.position);
 
@@ -325,16 +349,17 @@ class Game {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
     });
-    bus.on('render:quality', ({ preset }) => {
-      this.camera.far = preset.drawDistance;
-      this.camera.updateProjectionMatrix();
+    bus.on('render:quality', () => this._applyRegionView());
+    bus.on('player:swim', ({ swimming }) => {
+      if (swimming) this.hud.notice('Yüzüyorsun — zıplama ve çömelme devre dışı');
+      this._deepWarned = false;
     });
     bus.on('weather:changed', ({ label }) => this.hud?.notice(`Hava: ${label}`));
     bus.on('player:rebuilt', () => this.atmosphere.registerNow());
     bus.on('room:characterAdded', () => this.atmosphere.registerNow());
     bus.on('trigger:enter', ({ data }) => {
       if (data.cinematic && this.fsm.is('play')) {
-        const shot = this.room.cinematics[data.cinematic];
+        const shot = this.room.cinematics?.[data.cinematic];
         if (shot) this.fsm.change('cinematic', shot);
       } else if (data.message) this.hud.toast(data.message);
     });
@@ -359,7 +384,8 @@ class Game {
     });
 
     for (const btn of this.bootEl.querySelectorAll('[data-boot]')) {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
+        if (this.regions.loading) return;
         if (btn.dataset.boot === 'gallery') {
           this.fsm.change('gallery');
           return;
@@ -368,10 +394,52 @@ class Game {
           this.fsm.change('creator', { mode: 'new' });
           return;
         }
-        if (btn.dataset.boot === 'continue') this.loadGame(this.saves.latestSlot());
+        if (btn.dataset.boot === 'continue') await this.loadGame(this.saves.latestSlot());
         this.fsm.change('play');
       });
     }
+  }
+
+  // ------------------------------------------------------------- regions
+
+  _loadingProgress(label, t) {
+    this.loadingEl.querySelector('.loading-bar i').style.width = `${Math.round(t * 100)}%`;
+    this.loadingEl.querySelector('.loading-status').textContent = label;
+  }
+
+  /** Camera range and fog density for the active region and quality. */
+  _applyRegionView() {
+    const preset = this.renderer.preset;
+    this.camera.far = this.room.outdoor ? preset.worldDrawDistance : preset.drawDistance;
+    this.camera.updateProjectionMatrix();
+    this.atmosphere.fogScale = this.room.fogScale ?? 1;
+  }
+
+  /**
+   * Replace the active region (loading screen) and place the player.
+   * Leaves the game in the 'loading' state; the caller picks the next one.
+   * @param {string} id
+   * @param {{position:THREE.Vector3, yaw:number}} [at] default: the region spawn
+   * @returns {Promise<boolean>}
+   */
+  async switchRegion(id, at) {
+    if (this.regions.loading || !RegionManager.has(id)) return false;
+    this.cameraRig.releaseLock();
+    this.fsm.change('loading', `${RegionManager.list().find((r) => r.id === id).name} yükleniyor…`);
+    await nextFrame();
+    this.room = await this.regions.load(id, (label, t) => this._loadingProgress(label, t));
+    this._applyRegionView();
+    this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
+    const pos = at?.position ?? this.room.spawn.position;
+    const yaw = at?.yaw ?? this.room.spawn.yaw;
+    this.player.teleport(pos, yaw);
+    this.cameraRig.snapTo(pos, yaw);
+    this.room.onTeleport();
+    this.debug.setTeleports(this.room.teleports);
+    this._spawningStudents = true;
+    this.atmosphere.registerNow();
+    this.player.character.simulateCloth = this.toggles.cloth;
+    return true;
   }
 
   // ------------------------------------------------------------ creator
@@ -426,7 +494,7 @@ class Game {
 
   serialize() {
     return {
-      region: TEST_ROOM.id,
+      region: this.room.id,
       clock: this.clock.serialize(),
       weather: this.atmosphere.weather.serialize(),
       playtime: this.playtime,
@@ -442,13 +510,19 @@ class Game {
     return ok;
   }
 
-  loadGame(slot) {
+  /**
+   * @param {string|number|null} slot
+   * @returns {Promise<boolean>}
+   */
+  async loadGame(slot) {
     const env = slot == null ? null : this.saves.load(slot);
     if (!env) {
       this.hud.notice('Kayıt bulunamadı');
       return false;
     }
     const d = env.data;
+    const region = RegionManager.has(d.region) ? d.region : RegionManager.defaultId;
+    if (region !== this.room.id && !(await this.switchRegion(region))) return false;
     this.playtime = Number(d.playtime) || 0;
     const character = sanitizeCharacter(d.character);
     if (JSON.stringify(character) !== JSON.stringify(this.characterData)) {
@@ -457,6 +531,7 @@ class Game {
       this.characterData.wand = this.player.character.data.wand;
     }
     this.player.deserialize(d.player);
+    this.room.onTeleport();
     this.clock.deserialize(d.clock);
     this.atmosphere.weather.deserialize(d.weather);
     this.cameraRig.snapTo(this.player.position, Number(d.camera?.yaw) || this.player.yaw, Number(d.camera?.pitch) || CAMERA.defaultPitch);
@@ -471,6 +546,7 @@ class Game {
     const fmt = (v, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : '—');
     return {
       teleports: this.room.teleports,
+      regions: RegionManager.list(),
       getToggles: () => ({ ...this.toggles }),
       getEntities: () => this.room.debugEntities,
       getSections: () => {
@@ -490,6 +566,7 @@ class Game {
             Bellek: mem ? `${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'desteklenmiyor',
             Kalite: QUALITY_PRESETS[this.renderer.quality].label,
           },
+          Bölge: { Ad: this.room.name, ...(this.room.stats ?? {}) },
           'Zaman ve hava': this.atmosphere.stats,
           Karakter: this._characterStats(),
           Dokular: {
@@ -525,6 +602,11 @@ class Game {
           if (!t) return;
           this.player.teleport(t.position, t.yaw);
           this.cameraRig.snapTo(t.position, t.yaw);
+          this.room.onTeleport();
+        },
+        region: async (id) => {
+          if (id === this.room.id || !(this.fsm.is('play') || this.fsm.is('pause'))) return;
+          if (await this.switchRegion(id)) this.fsm.change('play');
         },
         toggle: (key) => {
           this.toggles[key] = !this.toggles[key];
@@ -546,7 +628,8 @@ class Game {
           this.time.scale = v;
         },
         cinematic: () => {
-          if (this.fsm.is('play')) this.fsm.change('cinematic', this.room.cinematics.tour);
+          const shot = Object.values(this.room.cinematics ?? {})[0];
+          if (this.fsm.is('play') && shot) this.fsm.change('cinematic', shot);
         },
         damage: () => this.player.damage(25, 'debug', true),
         heal: () => this.player.heal(this.player.maxHealth),
@@ -636,7 +719,8 @@ class Game {
 
     if (this.input.pressed('debug')) this.debug.toggle();
     // Background students are generated one per frame after boot.
-    if (this._spawningStudents && !this.fsm.is('creator') && !this.fsm.is('gallery')) this._spawningStudents = this.room.spawnNextStudent();
+    const busy = this.fsm.is('creator') || this.fsm.is('gallery') || this.fsm.is('loading');
+    if (this._spawningStudents && !busy) this._spawningStudents = this.room.spawnNextStudent();
     this.fsm.update(time.unscaledDt);
 
     const simulate = this.fsm.is('play') || this.fsm.is('cinematic');
@@ -655,7 +739,7 @@ class Game {
       if (this.gallery.active) this.gallery.render();
     } else if (this.fsm.is('creator')) {
       if (this.creatorStage.active) this.creatorStage.render();
-    } else {
+    } else if (!this.fsm.is('loading')) {
       // Game time runs everywhere except in menus.
       const gameHours = this.fsm.is('pause') ? 0 : this.clock.update(time.dt);
       this.lateUpdate(time.unscaledDt, alpha);
@@ -684,6 +768,10 @@ class Game {
     this.physics.syncPlayerProxy(c.position, c.velocity, c.radius, c.height);
     this.physics.step(dt);
     this.triggers.update(c.position, c.height, c.radius);
+    if (c.swimming && !this._deepWarned && this.room.waterDepth(c.position.x, c.position.z) > LAKE.deepWarning) {
+      this._deepWarned = true;
+      this.hud.toast('Çok derin sulardasın — Kara Göl\'de fazla açılma, kıyıya dön!');
+    }
 
     this.playtime += dt;
     if (this.fsm.is('play')) {
@@ -716,6 +804,7 @@ class Game {
     }
 
     this.room.render(this.time.elapsed, this.atmosphere.night);
+    this.room.frame(dt, this.camera, { night: this.atmosphere.night, hour: this.clock.hour, wind: this.atmosphere.weather.wind });
     this.debugDraw.update(player.controller, player.visualPosition);
 
     let lockScreen = null;

@@ -88,4 +88,16 @@ export const PLAYER = Object.freeze({
 
   /** Visual smoothing of sudden height changes (step-ups), 1/s. */
   stepSmoothRate: 14,
+
+  /** Swimming: depths are water surface minus feet height (m). */
+  swim: {
+    enterDepth: 1.2,
+    exitDepth: 0.95,
+    floatDepth: 1.12,
+    speed: 2.1,
+    fastSpeed: 3.1,
+    accel: 5,
+    buoyancy: 16,
+    damping: 8,
+  },
 });

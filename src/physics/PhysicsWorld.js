@@ -88,6 +88,8 @@ export class PhysicsWorld {
    */
   addStaticBox(size, matrix, opts = {}) {
     const c = this.collision.add(new Collider({ ...opts, shape: 'box', kind: 'static', size, matrix }));
+    // Scenery with no rigid bodies nearby skips the cannon mirror (keeps the broadphase small).
+    if (opts.rigid === false) return c;
     const body = new CANNON.Body({
       type: CANNON.Body.STATIC,
       collisionFilterGroup: G.static,
@@ -110,6 +112,7 @@ export class PhysicsWorld {
     const c = this.collision.add(
       new Collider({ ...opts, shape: 'cylinder', kind: 'static', radius, height, matrix }),
     );
+    if (opts.rigid === false) return c;
     const body = new CANNON.Body({
       type: CANNON.Body.STATIC,
       collisionFilterGroup: G.static,
@@ -154,6 +157,23 @@ export class PhysicsWorld {
     this.world.addBody(body);
     c.userData.cannonBody = body;
     return c;
+  }
+
+  /**
+   * Terrain heightfield for the character controller, camera and raycasts.
+   * @param {Parameters<CollisionWorld['addHeightfield']>[0]} o
+   */
+  addHeightfield(o) {
+    return this.collision.addHeightfield(o);
+  }
+
+  removeHeightfield(hf) {
+    this.collision.removeHeightfield(hf);
+  }
+
+  /** Terrain height at (x, z), -Infinity when there is no terrain. */
+  terrainHeight(x, z) {
+    return this.collision.terrainHeight(x, z);
   }
 
   /** Remove any collider created by this world (region unloading). */

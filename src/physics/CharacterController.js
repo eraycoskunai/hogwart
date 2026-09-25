@@ -106,6 +106,10 @@ export class CharacterController {
     this.wantCrouch = false;
     this.crouching = false;
     this.noclip = false;
+    /** Water surface height at the current position (-Infinity on dry land). */
+    this.waterLevel = -Infinity;
+    this.swimming = false;
+    this._swimFooting = false;
 
     /** Highest Y reached since leaving the ground. */
     this.airPeakY = 0;
@@ -156,6 +160,7 @@ export class CharacterController {
     this.airPeakY = pos.y;
     this.stepOffset = 0;
     this.platformVelocity.set(0, 0, 0);
+    this.swimming = false;
   }
 
   /** Buffer a jump request (consumed when grounded or within coyote time). */
@@ -361,6 +366,33 @@ export class CharacterController {
     return this.world.capsuleContacts(this._a, this._b, this.radius * 0.94, { dynamic: false }).length === 0;
   }
 
+  // ------------------------------------------------------------------ swim
+
+  /** Floating at the surface: buoyancy spring, water drag, no jumping. */
+  _swimStep(dt, wishDir, wishSpeed, depth) {
+    const sw = this.cfg.swim;
+    const v = this.velocity;
+    const speed = wishSpeed > this.cfg.runSpeed ? sw.fastSpeed : Math.min(wishSpeed, sw.speed);
+    wishSpeed = speed;
+    const k = 1 - Math.exp(-sw.accel * dt);
+    v.x += (wishDir.x * wishSpeed - v.x) * k;
+    v.z += (wishDir.z * wishSpeed - v.z) * k;
+    v.y += ((depth - sw.floatDepth) * sw.buoyancy - v.y * sw.damping) * dt;
+    const st = resetState(this._st);
+    const test = this._test.copy(this.position);
+    this._move(test, this._delta.copy(v).multiplyScalar(dt), st, v.y > 0);
+    this.position.copy(test);
+    // Feet on the lake bed: shallow enough to wade out.
+    this._swimFooting = st.grounded;
+    this.grounded = false;
+    this.groundCollider = null;
+    this.onSteepSlope = false;
+    this.jumpBufferTimer = 0;
+    this.coyoteTimer = 0;
+    // No fall damage after a swim.
+    this.airPeakY = this.position.y;
+  }
+
   // ------------------------------------------------------------------ step
 
   /**
@@ -396,6 +428,21 @@ export class CharacterController {
     if (this.grounded) this.coyoteTimer = cfg.coyoteTime;
     else this.coyoteTimer -= dt;
     this.jumpBufferTimer -= dt;
+
+    // Swimming: enter when the water reaches the chest, leave on shallow ground.
+    const sw = cfg.swim;
+    const depth = this.waterLevel - this.position.y;
+    if (!this.swimming && depth > sw.enterDepth) {
+      this.swimming = true;
+      this.events.push({ type: 'swimStart' });
+    } else if (this.swimming && (depth < sw.exitDepth * 0.5 || (depth < sw.exitDepth && this._swimFooting))) {
+      this.swimming = false;
+      this.events.push({ type: 'swimEnd' });
+    }
+    if (this.swimming) {
+      this._swimStep(dt, wishDir, wishSpeed, depth);
+      return;
+    }
 
     // 4. Horizontal acceleration toward the wish velocity.
     const v = this.velocity;

@@ -28,6 +28,7 @@ export class TargetDummy {
   constructor(ctx, position, yaw, mats) {
     this.name = `Antrenman Mankeni ${++_count}`;
     this.bus = ctx.bus;
+    this.physics = ctx.physics;
     this.position = position.clone();
     this.baseYaw = yaw;
     this.headYaw = 0;
@@ -194,6 +195,7 @@ export class TargetDummy {
 
   dispose() {
     this.bus.off('camera:lock', this._onLock);
+    this.physics.removeCollider(this.collider);
     this.group.traverse((o) => o.geometry?.dispose());
     this.group.removeFromParent();
   }

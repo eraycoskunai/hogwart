@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 4 — Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma** (Faz 1–3 tamam)
+> **Durum: Faz 5 — Şato modül kiti, Hogwarts dış mekânı, arazi, Kara Göl, Yasak Orman** (Faz 1–4 tamam)
 
 ## Çalıştırma
 
@@ -39,6 +39,9 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 Tuşlar menüdeki **Kontroller** sekmesinden yeniden atanabilir (localStorage'a kaydedilir).
 
 ## Test salonu
+
+Oyun artık Hogwarts arazisinde başlar; motor test salonuna F3 → **Bölge → Motor Test Salonu** ile geçilir.
+
 
 | Alan | Neyi test eder |
 |---|---|
@@ -131,11 +134,38 @@ Doku çözünürlüğü kalite ayarına bağlıdır (Düşük 512, Orta/Yüksek 
   istatistiklerine küçük etkiler (F3 panelinde görünür). Asa dükkânı sahnesi Faz 12'de gelecek.
 - Kayıtlar artık karakteri de saklar (kayıt sürümü 2; eski kayıtlar otomatik yükseltilir).
 
+## Hogwarts arazisi (Faz 5)
+
+Açılış ve *Yeni Oyun*, şatonun doğu avlusunda başlar. Her şey açılışta koddan üretilir (orta kalitede ~10 sn, dokular önbellekteyse daha kısa).
+
+- **Arazi** (`world/grounds/TerrainData.js`): 1.6 × 1.6 km yükseklik alanı (2 m hücre, 801² örnek) — tepeler, dağ halkası,
+  şato platosu ve uçurumları, Kara Göl çanağı (kıyıda sığ, ortada 27 m), düzleştirilmiş Quidditch sahası ve kulübe alanı,
+  yükseklikleri kontrol noktalarıyla verilen yollar (Hogsmeade yolu, kulübe yolu, göl kıyısı, doğu yolu).
+  Çarpışma için özel **yükseklik alanı çarpıştırıcısı**: üçgenler anında üretilir, ışınlar 2B DDA ile yürür.
+- **Görüntü**: 64 parça, 3 LOD adımı (etekli, histerezisli), splat dokulu arazi malzemesi (çim, toprak yol, orman zemini,
+  kaldırım, kıyı çamuru + eğime göre kaya; yağmurda ıslanır, karda beyazlar). Göl: derinliğe göre renk ve saydamlık, kıyıda köpük.
+- **Şato modül kiti** (`procgen/geometry/CastleKit.js`): blok, mazgallı siper, beşik/konik/piramit çatı, sivri kemer, pencere
+  (çerçeve + cam), payanda, silme, kule gövdesi, kemer açıklığı, tepelik, flama, kapı, saat kadranı. `data/castle.js` ile
+  7 salon (Giriş Holü, Büyük Salon …), 8 yuvarlak kule (Astronomi 70 m, bina flamaları), saat kulesi (gerçek saati gösterir),
+  13 sur duvarı, 3 kapı ve taş viyadük kurulur. Parçalar malzemeye göre tek çizim çağrısında birleştirilir; pencereler gece yanar.
+- **Bitki örtüsü**: prosedürel ağaçlar (meşe, çam, kurumuş; türe göre 3 varyant) ve kayalar. Yakında tam model, uzakta
+  açılışta render hedefine çizilen kameraya dönük **impostor**; gövde çarpıştırıcıları. Rüzgârla sallanan yapraklar.
+  Kameranın etrafında kayan **GPU çimen alanı** (düşük kalitede kapalı; orta/yüksek/ultra 16k/30k/52k öbek).
+- **Mekânlar**: Yasak Orman (batı, sis ve koyu renk düzeltmesi), Kara Göl (güney), bekçi kulübesi (saman çatı, bacadan duman,
+  balkabakları, çit), Quidditch sahası (çizgiler, 3+3 halka, bina renkli tribünler), yol lambaları (akşam yanar), öğrenciler,
+  bilgi tetikleyicileri ve şato turu sinematiği (doğu avlusundaki daire).
+- **Yüzme**: su göğse gelince yüzmeye geçilir (kaldırma kuvveti, suda sürtünme, yüzme hızı; zıplama ve çömelme yok,
+  yüzme ve su çiğneme animasyonları). Sığ suya ayak basınca yürüyerek çıkılır. Derin suda uyarı verilir.
+- **Bölgeler** (`world/RegionManager.js`): bölge değişimi yükleme ekranıyla yapılır; eski bölgenin geometri, doku, çarpıştırıcı,
+  ışık, alev ve renk düzeltmesi bölgeleri serbest bırakılır, kullanılmayan dokular bellekten atılır. Kayıtlar bölgeyi de saklar.
+- **Görüş mesafesi** kaliteye bağlı: 520 / 900 / 1400 / 2000 m (bitki yoğunluğu ve impostor mesafesi de ölçeklenir).
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
 oyuncu durumu (zemin açısı, hız, kilit), yapay zekâ ve platform durumları, çarpışma şekilleri görünümü,
-noclip, ölümsüzlük, zaman ölçeği, ışınlanma menüsü, sinematik/hasar/hit-stop/sarsıntı testleri.
+noclip, ölümsüzlük, zaman ölçeği, bölge değiştirme, bölgeye göre ışınlanma menüsü (arazide 11 nokta), arazi LOD / ağaç / kaya / çimen
+istatistikleri, sinematik/hasar/hit-stop/sarsıntı testleri.
 **Zaman ve hava** bölümü: saat kaydırıcısı, zaman hızı (×1 / ×10 / ×60 / ×300), hava durumu düğmeleri,
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 **Karakter** bölümü: tüm animasyonları oynatma (döngüsel olanlar ikinci tıkta durur), ifadeler, konuşma, bina renkleri, kıyafet
@@ -151,17 +181,20 @@ src/core/             EventBus, StateMachine, Input (klavye/fare/gamepad + tuş 
                       SaveSystem (3 yuva + otomatik, sürümlü), Settings, AssetCache (referans sayımı), Debug (F3)
 src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sky/SkyShader, Environment, SceneLighting (CSM),
                       LightManager, FlameSprites, Weather + WeatherParticles + PrecipitationOccluder, PostFX,
-                      ColorGrading, DustMotes, SurfaceShader, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
+                      ColorGrading, DustMotes, SurfaceShader, TerrainMaterial, LakeMaterial, WindowMaterial,
+                      GrassField, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
 src/physics/          Geometry (kapsül/üçgen/ışın testleri), Collider, CollisionWorld (3B uzamsal hash + DDA ışın),
                       PhysicsWorld (cannon-es rijit cisimler + kinematik platformlar), CharacterController, TriggerSystem
 src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Student (arka plan öğrencileri), TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
-src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme)
+src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
+                      geometry/CastleKit (şato modülleri), geometry/TreeGenerator (ağaç, kaya)
 src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerator, BodyGenerator, Garments + ClothGarment,
                       WandGenerator, CharacterTextures, Appearance, Hairline, MeshKit
-src/world/            GameClock, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
+src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
+src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/ui/               HUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, test salonu
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, test salonu, arazi, şato, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -173,7 +206,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 2. ✅ Prosedürel doku sistemi ve tüm malzemeler (Worker + önbellek), malzeme galerisi
 3. ✅ Işık, gökyüzü, gün-gece, hava durumu, post-fx, kalite ayarları
 4. ✅ Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma
-5. Şato modül kiti, Hogwarts dış mekânı, arazi, göl, orman
+5. ✅ Şato modül kiti, Hogwarts dış mekânı, arazi, göl, orman
 6. İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming
 7. Büyü sistemi, efektler, jest tanıma
 8. Savaş, düşmanlar, yapay zekâ, düello, boss

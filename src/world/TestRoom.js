@@ -36,6 +36,11 @@ export class TestRoom {
   constructor(ctx, data) {
     this.ctx = ctx;
     this.data = data;
+    this.id = data.id;
+    this.name = data.name;
+    this.outdoor = false;
+    this.fogScale = 1;
+    this.menuOrbit = data.menuOrbit;
     this.root = new THREE.Group();
     this.root.name = data.name;
     ctx.scene.add(this.root);
@@ -521,6 +526,24 @@ export class TestRoom {
    */
   updateCharacters(dt, env) {
     for (const s of this.students) s.update(dt, env);
+  }
+
+  /** The test hall has no water. */
+  waterLevelAt() {
+    return -Infinity;
+  }
+
+  waterDepth() {
+    return 0;
+  }
+
+  /** Per-frame camera work (nothing streams in the test hall). */
+  frame() {}
+
+  onTeleport() {}
+
+  get stats() {
+    return null;
   }
 
   /** Entities exposed to the debug panel. */
