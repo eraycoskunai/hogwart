@@ -1,16 +1,26 @@
 /**
  * @file Player — binds input intent, the capsule controller, health / fall
- * damage, respawning and the visual avatar together.
+ * damage, respawning and the visual avatar (procedural student character
+ * with skeletal animation, IK, facial animation and cloth) together.
  *
  * Emits: player:damaged, player:healed, player:died, player:respawned,
- *        player:landed, player:jumped, player:state
+ *        player:landed, player:jumped, player:state, player:rebuilt
  */
 import * as THREE from 'three';
 import { PLAYER, PHYSICS } from '../data/physics.js';
 import { DIFFICULTIES } from '../data/settings.js';
 import { CharacterController } from '../physics/CharacterController.js';
-import { buildMannequin, setMannequinOpacity, applyRobeMaterial } from '../procgen/characters/Mannequin.js';
-import { ProceduralAnimator } from '../animation/ProceduralAnimator.js';
+import { Character } from '../procgen/characters/Character.js';
+import { Animator } from '../animation/Animator.js';
+import { FaceAnimator } from '../animation/FaceAnimator.js';
+import { makeGroundProbe } from '../animation/GroundProbe.js';
+
+/** Seconds a pained expression stays after taking damage. */
+const PAIN_SECONDS = 0.9;
+/** Smoothing (1/s) of the climb-rate and acceleration signals fed to the animator. */
+const SIGNAL_SMOOTH = 8;
+/** Camera distance over which the avatar fades out when the camera is very close. */
+const FADE = Object.freeze({ start: 0.55, range: 0.6 });
 
 const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -25,8 +35,8 @@ function angleDelta(a, b) {
 export class Player {
   /**
    * @param {{bus:import('../core/EventBus.js').EventBus, physics:import('../physics/PhysicsWorld.js').PhysicsWorld,
-   *          settings:import('../core/Settings.js').Settings, scene:THREE.Scene,
-   *          library?:import('../render/MaterialLibrary.js').MaterialLibrary}} ctx
+   *          settings:import('../core/Settings.js').Settings, scene:THREE.Scene, preset:any,
+   *          library?:import('../render/MaterialLibrary.js').MaterialLibrary, character?:any}} ctx
    */
   constructor(ctx) {
     this.bus = ctx.bus;
@@ -34,13 +44,22 @@ export class Player {
     this.settings = ctx.settings;
     this.controller = new CharacterController(ctx.physics, PLAYER);
 
-    this.rig = buildMannequin();
-    if (ctx.library?.isLoaded('robeFabric')) {
-      // Robe fades when the camera is close, so it gets its own (unshared) instance.
-      applyRobeMaterial(this.rig, ctx.library.get('robeFabric', { surface: { variation: 0 } }));
-    }
-    this.animator = new ProceduralAnimator(this.rig);
-    ctx.scene.add(this.rig.root);
+    this.character = new Character({ library: ctx.library, preset: ctx.preset, name: 'Player' });
+    this.character.build(ctx.character ?? null);
+    this.face = new FaceAnimator(this.character);
+    this.animator = new Animator(this.character, this.face);
+    this.animator.onEvent = (name, clip) => this.bus.emit('player:animEvent', { name, clip });
+    ctx.scene.add(this.character.root);
+    this._ground = makeGroundProbe(ctx.physics);
+    /** World point the head turns to (set by the game each frame) or null. */
+    this.lookTarget = null;
+    /** World point the wand aims at while aiming, or null. */
+    this.aimTarget = null;
+    this._climb = 0;
+    this._accel = 0;
+    this._prevSpeed = 0;
+    this._prevGround = new THREE.Vector3();
+    this._pain = 0;
 
     this.maxHealth = PLAYER.maxHealth;
     this.health = this.maxHealth;
@@ -196,6 +215,16 @@ export class Player {
     }
     this._turnRate = angleDelta(this._prevYaw, this.yaw) / dt;
 
+    // Animation signals: ground climb rate (stairs) and forward acceleration.
+    const k = 1 - Math.exp(-SIGNAL_SMOOTH * dt);
+    const horiz = Math.hypot(c.position.x - this._prevGround.x, c.position.z - this._prevGround.z);
+    const rise = c.grounded && horiz > 1e-3 ? (c.position.y - this._prevGround.y) / horiz : 0;
+    this._climb += (THREE.MathUtils.clamp(rise, -1, 1) - this._climb) * k;
+    this._prevGround.copy(c.position);
+    const speed = this.speed;
+    this._accel += ((speed - this._prevSpeed) / dt - this._accel) * k;
+    this._prevSpeed = speed;
+
     if (c.position.y < PHYSICS.killPlaneY) this.kill('void');
 
     const loco = this._computeLocomotion();
@@ -242,6 +271,8 @@ export class Player {
     const scale = ignoreDifficulty ? 1 : DIFFICULTIES[this.settings.get('difficulty')]?.damageTaken ?? 1;
     const dmg = amount * scale;
     this.health = Math.max(0, this.health - dmg);
+    this._pain = PAIN_SECONDS;
+    this.animator.play('hit');
     this.bus.emit('player:damaged', { amount: dmg, source, health: this.health, max: this.maxHealth });
     if (this.health <= 0) this.kill(source);
   }
@@ -259,6 +290,9 @@ export class Player {
     this.dead = true;
     this.health = 0;
     this._respawnTimer = PLAYER.respawnDelay;
+    this.animator.stopAll();
+    this.animator.play('collapse');
+    this.face.blinkLock = 1;
     this.bus.emit('player:died', { cause });
   }
 
@@ -270,6 +304,8 @@ export class Player {
     this.controller.height = PLAYER.height;
     this.controller.crouching = false;
     this.teleport(this.spawnPoint, this.spawnYaw);
+    this.animator.stop('collapse');
+    this.face.blinkLock = 0;
     this.bus.emit('player:respawned', { position: this.spawnPoint.clone() });
   }
 
@@ -280,32 +316,48 @@ export class Player {
    * @param {number} dt frame delta
    * @param {number} alpha interpolation factor
    * @param {number} cameraDistance used to fade the avatar when the camera is close
+   * @param {{camera?:THREE.Camera, wind?:THREE.Vector3}} [env]
    */
-  render(dt, alpha, cameraDistance) {
+  render(dt, alpha, cameraDistance, env = {}) {
     const c = this.controller;
     c.getInterpolatedPosition(alpha, _vis);
     _vis.y += c.stepOffset;
     this.visualPosition.copy(_vis);
-    const root = this.rig.root;
+    const root = this.character.root;
     root.position.copy(_vis);
-    root.rotation.y = this._prevYaw + angleDelta(this._prevYaw, this.yaw) * alpha;
+    root.rotation.set(0, this._prevYaw + angleDelta(this._prevYaw, this.yaw) * alpha, 0);
 
+    if (this._pain > 0) this._pain -= dt;
+    this.face.setExpression(this.dead ? 'pain' : this._pain > 0 ? 'pain' : 'neutral');
+    this.face.update(dt);
     this.animator.update(dt, {
       speed: this.dead ? 0 : this.speed,
-      runSpeed: PLAYER.runSpeed,
       grounded: c.grounded || c.noclip,
       vy: c.velocity.y,
       crouching: c.crouching,
       aiming: this.intent.aim && !this.dead,
       turnRate: this._turnRate,
+      accel: this._accel,
+      climb: this._climb,
+      sliding: c.onSteepSlope && !c.grounded,
+      lookTarget: this.dead ? null : this.lookTarget,
+      aimTarget: this.aimTarget,
+      ground: c.noclip ? null : this._ground,
     });
-    // Collapse pose while unconscious.
-    const deadT = this.dead ? 1 : 0;
-    root.rotation.x += ((deadT ? -Math.PI / 2 + 0.15 : 0) - root.rotation.x) * (1 - Math.exp(-6 * dt));
-    root.position.y += Math.sin(-root.rotation.x) * 0.25;
+    this.character.update(dt, { camera: env.camera, wind: env.wind, groundY: c.grounded ? _vis.y : -Infinity });
+    const fade = THREE.MathUtils.clamp((cameraDistance - FADE.start) / FADE.range, 0, 1);
+    this.character.setOpacity(fade);
+  }
 
-    const fade = THREE.MathUtils.clamp((cameraDistance - 0.55) / 0.6, 0, 1);
-    setMannequinOpacity(this.rig, fade);
+  /**
+   * Replace the avatar (character creator, loading a save).
+   * @param {any} data character description
+   */
+  setCharacter(data) {
+    this.character.build(data);
+    this.animator.stopAll();
+    this.character.resetCloth();
+    this.bus.emit('player:rebuilt', { character: this.character });
   }
 
   // ---------------------------------------------------------------- saves

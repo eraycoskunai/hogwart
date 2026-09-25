@@ -129,6 +129,8 @@ export class MaterialLibrary {
         tex.dispose();
         tex.image = { data, width: set.size, height: set.size };
         tex.needsUpdate = true;
+        // Views share the image but own GPU storage sized for the preview.
+        for (const v of entry.views ?? []) if (v.userData.map === name) v.dispose();
       }
       entry.size = set.size;
       entry.set = set;
@@ -262,6 +264,59 @@ export class MaterialLibrary {
       default:
         throw new Error(`Unknown effect type ${d.type}`);
     }
+  }
+
+  /**
+   * Borrow a key's raw textures (albedo / normal / orm) for a custom
+   * material. Pair every call with releaseTextures().
+   * @param {string} key
+   * @returns {Record<string, THREE.DataTexture>|null}
+   */
+  acquireTextures(key) {
+    const entry = this.textures.get(key);
+    if (!entry) return null;
+    entry.refs++;
+    return entry.tex;
+  }
+
+  /**
+   * A view of one of a key's maps that samples another UV set (the image is
+   * shared; only sampler state differs). Views are re-created on the GPU when
+   * the preview maps upgrade to full resolution.
+   * @param {string} key
+   * @param {'albedo'|'normal'|'orm'} map
+   * @param {number} channel uv set index
+   * @returns {THREE.Texture|null}
+   */
+  textureView(key, map, channel) {
+    const entry = this.textures.get(key);
+    if (!entry?.tex[map]) return null;
+    entry.refs++;
+    const view = entry.tex[map].clone();
+    view.channel = channel;
+    view.userData = { libraryKey: key, map };
+    (entry.views ??= new Set()).add(view);
+    return view;
+  }
+
+  /** @param {THREE.Texture} view from textureView() */
+  releaseTextureView(view) {
+    const key = view?.userData?.libraryKey;
+    const entry = key && this.textures.get(key);
+    view?.dispose();
+    if (!entry) return;
+    entry.views?.delete(view);
+    if (entry.refs > 0) entry.refs--;
+  }
+
+  /**
+   * Return borrowed textures. They stay cached (characters are rebuilt
+   * often in the creator); material releases free them once unused.
+   * @param {string} key
+   */
+  releaseTextures(key) {
+    const entry = this.textures.get(key);
+    if (entry && entry.refs > 0) entry.refs--;
   }
 
   /** Release a material obtained with get(); disposes when unused. */

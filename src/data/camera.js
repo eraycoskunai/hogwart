@@ -5,8 +5,8 @@ const DEG = Math.PI / 180;
 
 export const CAMERA = Object.freeze({
   near: 0.05,
-  pivotHeight: 1.58,
-  crouchPivotHeight: 1.02,
+  pivotHeight: 1.5,
+  crouchPivotHeight: 0.98,
   distance: 3.7,
   minDistance: 0.55,
   aimDistance: 1.55,

@@ -27,7 +27,7 @@ export const PHYSICS = Object.freeze({
 
 export const PLAYER = Object.freeze({
   radius: 0.32,
-  height: 1.78,
+  height: 1.68,
   crouchHeight: 1.12,
   mass: 70,
 

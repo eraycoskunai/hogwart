@@ -29,6 +29,9 @@ export const QUALITY_PRESETS = Object.freeze({
     fogDensityScale: 1.25,
     particleScale: 0.35,
     maxDynamicLights: 2,
+    characterTexture: 512,
+    headDetail: 0.75,
+    clothIterations: 3,
     postFx: false,
   },
   medium: {
@@ -56,6 +59,9 @@ export const QUALITY_PRESETS = Object.freeze({
     fogDensityScale: 1,
     particleScale: 0.6,
     maxDynamicLights: 4,
+    characterTexture: 1024,
+    headDetail: 1,
+    clothIterations: 4,
     postFx: true,
   },
   high: {
@@ -83,6 +89,9 @@ export const QUALITY_PRESETS = Object.freeze({
     fogDensityScale: 0.85,
     particleScale: 1,
     maxDynamicLights: 8,
+    characterTexture: 1024,
+    headDetail: 1,
+    clothIterations: 5,
     postFx: true,
   },
   ultra: {
@@ -110,6 +119,9 @@ export const QUALITY_PRESETS = Object.freeze({
     fogDensityScale: 0.7,
     particleScale: 1.5,
     maxDynamicLights: 12,
+    characterTexture: 2048,
+    headDetail: 1.2,
+    clothIterations: 6,
     postFx: true,
   },
 });

@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 3 — Işık, gökyüzü, gün-gece, hava durumu, post-fx** (Faz 1–2 tamam)
+> **Durum: Faz 4 — Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma** (Faz 1–3 tamam)
 
 ## Çalıştırma
 
@@ -55,6 +55,7 @@ Tuşlar menüdeki **Kontroller** sekmesinden yeniden atanabilir (localStorage'a 
 | Parlayan rün dairesi | Spline sinematik kamera turu (Boşluk/Esc ile atla), alan derinliği |
 | Büyük Salon | Büyülü tavan (gerçek gökyüzü), yüzen mumlar, sıcak altın renk düzeltmesi |
 | Zindan | Titreyen meşaleler, yeşil renk düzeltmesi, iç mekân ortam ışığı |
+| Öğrenciler | Rastgele üretilmiş özgün öğrenciler: duran (yaklaşınca bakar, el sallar), volta atan, hedeflere büyü çalışan, Büyük Salon'da oturan, Quidditch formalı |
 
 Her alanın girişinde bilgi tetikleyicisi, oyuncuya neyin test edildiğini gösterir.
 
@@ -101,6 +102,35 @@ Doku çözünürlüğü kalite ayarına bağlıdır (Düşük 512, Orta/Yüksek 
   parçacık sayıları. Menü → Grafik sekmesinden bloom, AO, güneş ışınları ve toz tek tek kapatılabilir.
   Parçacık sayıları ve doku çözünürlüğü sayfa yenilenince uygulanır.
 
+## Karakterler (Faz 4)
+
+- **Karakter yaratma ekranı**: *Yeni Oyun* ile açılır (ya da F3 → *Karakter yaratma ekranı*). Sekmeler: Kimlik (ad, soyad, ses tonu),
+  Beden (boy, yapı, omuz, pantolon/etek), Yüz (yüz genişliği/uzunluğu, çene hattı, çene ucu, elmacık, burun uzunluğu/genişliği/kemeri/ucu,
+  göz boyutu/aralığı/eğimi, dudak, ağız, kulaklar), Renkler (8 cilt tonu, 7 göz rengi, çil), Saç (9 stil, 9 renk, kaşlar), Aksesuar
+  (3 gözlük, atkı). Önizleme: üniforma / Quidditch forması, bina renkleri (yalnızca önizleme — bina Seçmen Şapka töreninde belirlenir),
+  pozlar (duruş, yürü, koş, büyü, selam, kalkan, yuvarlanma, uçuş) ve ifadeler. Sürükle: döndür, tekerlek: yakınlaş.
+- **İnsansı üretici** (`src/procgen/characters/`): kafa işaretli mesafe alanlarından (kafatası, yüz, çene, elmacık, kaş kemeri, burun,
+  dudaklar, göz çukurları) yontulur ve yüze doğru sıklaşan bir ızgara ışın yürütmeyle yüzeye oturtulur. Kulaklar, göz kapakları, kirpikler,
+  dişler; iris dokusu ve boyanmış yüz dokusu (cilt tonu, kızarıklık, dudaklar, kaşlar, göz kapağı gölgesi, çiller, saç çizgisi).
+  Beden kesit taramalarıyla (gövde, bacaklar, kollar, eller ve parmaklar, ayakkabılar) üretilir; tüm kıyafet tek bir atlas dokusu
+  (gömlek, bina renkli süveter yelek, kravat, pantolon/etek, ayakkabı; Quidditch: numaralı forma, çizme, dizlik, kolluk, eldiven).
+- **Yüz ifadeleri** (blend shape / morph): çene açma, gülümseme, kaş çatma, kaş kaldırma, büzme, geniş ağız, iki göz için ayrı kırpma.
+  Otomatik göz kırpma, göz seğirmeleri ve metinden hece hece dudak senkronu (Türkçe ünlüler çeneyi açar, m/b/p dudakları kapatır).
+- **İskelet**: 24 kemik (22 deforme eden + 2 göz), deri ağırlıklı SkinnedMesh.
+- **Animasyon** (`src/animation/`): veriden anahtar kareler (`data/animations.js`, yarı döngüler aynalanarak üretilir) + katmanlar:
+  hız karışım alanı (duruş/yürüme/koşu/depar, adım fazı mesafeye göre eşitlenir), çömelme, merdiven, zıplama/düşme, kayma, iniş;
+  tüm beden eylemleri (yuvarlanma, oturma, sersemleme, yere yığılma, süpürgeye binme/inme, uçuş pozları), üst beden eylemleri
+  (8 farklı büyü savurma hareketi — `release` olayıyla, kalkan, selam, boşta kıpırdanmalar) ve eklemeli darbe tepkisi. Nefes,
+  ivmeye göre öne eğilme, dönüşe göre yatma prosedüreldir.
+- **IK**: ayaklar zemine ve basamaklara oturur (kalça iner, ayak zemin eğimine döner), baş/boyun/göğüs ve gözler ilgi noktasına bakar
+  (kilitli hedef, yakındaki öğrenci ya da kameranın baktığı yer), nişan alırken asa kolu hedefe uzanır ve asa hedefi gösterir.
+- **Cübbe simülasyonu**: Verlet kumaş. Cübbenin üst gövdesi ve kolları iskelete iğnelenir; etek ve kol ağızları serbestçe sallanır,
+  bacak/kalça/kol kapsüllerine çarpar, rüzgârdan (hava durumu) etkilenir. Astar bina renginde. Quidditch pelerini ve atkı uçları da
+  simüle edilir. Uzaktaki karakterlerde kumaş iskeleti rijit izler.
+- **Asa**: ahşap türü (12), çekirdek (3), uzunluk (9–14½ inç), esneklik (5) ve sap stili (5) ile prosedürel model; büyü
+  istatistiklerine küçük etkiler (F3 panelinde görünür). Asa dükkânı sahnesi Faz 12'de gelecek.
+- Kayıtlar artık karakteri de saklar (kayıt sürümü 2; eski kayıtlar otomatik yükseltilir).
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
@@ -108,6 +138,9 @@ oyuncu durumu (zemin açısı, hız, kilit), yapay zekâ ve platform durumları,
 noclip, ölümsüzlük, zaman ölçeği, ışınlanma menüsü, sinematik/hasar/hit-stop/sarsıntı testleri.
 **Zaman ve hava** bölümü: saat kaydırıcısı, zaman hızı (×1 / ×10 / ×60 / ×300), hava durumu düğmeleri,
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
+**Karakter** bölümü: tüm animasyonları oynatma (döngüsel olanlar ikinci tıkta durur), ifadeler, konuşma, bina renkleri, kıyafet
+değiştirme, rastgele karakter, karakter yaratma ekranı; iskelet görünümü, IK ve kumaş simülasyonu anahtarları; kemik/üçgen/parçacık
+sayıları, üretim süresi, animasyon katmanları ve IK durumu, asa bilgisi.
 
 ## Mimari
 
@@ -121,12 +154,14 @@ src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sk
                       ColorGrading, DustMotes, SurfaceShader, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
 src/physics/          Geometry (kapsül/üçgen/ışın testleri), Collider, CollisionWorld (3B uzamsal hash + DDA ışın),
                       PhysicsWorld (cannon-es rijit cisimler + kinematik platformlar), CharacterController, TriggerSystem
-src/gameplay/         Player (can, düşme hasarı, yeniden doğma), TargetDummy
-src/animation/        ProceduralAnimator (adım, kol salınımı, eğilme, çömelme, iniş sıkışması, nişan pozu)
-src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme), Mannequin
-src/world/            GameClock, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery
-src/ui/               HUD, PauseMenu, styles.css
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, test salonu yerleşimi
+src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Student (arka plan öğrencileri), TargetDummy
+src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
+src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme)
+src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerator, BodyGenerator, Garments + ClothGarment,
+                      WandGenerator, CharacterTextures, Appearance, Hairline, MeshKit
+src/world/            GameClock, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
+src/ui/               HUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, test salonu
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -137,7 +172,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 1. ✅ Motor iskeleti, girdi, kamera, kapsül kontrolcü, fizik, debug paneli, test odası
 2. ✅ Prosedürel doku sistemi ve tüm malzemeler (Worker + önbellek), malzeme galerisi
 3. ✅ Işık, gökyüzü, gün-gece, hava durumu, post-fx, kalite ayarları
-4. Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma
+4. ✅ Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma
 5. Şato modül kiti, Hogwarts dış mekânı, arazi, göl, orman
 6. İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming
 7. Büyü sistemi, efektler, jest tanıma

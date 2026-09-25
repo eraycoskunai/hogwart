@@ -12,6 +12,7 @@ import { PathMover, RotateMover } from './Movers.js';
 import { TargetDummy } from '../gameplay/TargetDummy.js';
 import { disposeObject3D } from '../core/AssetCache.js';
 import { buildRoom } from './RoomBuilder.js';
+import { Student } from '../gameplay/Student.js';
 
 const DEG = Math.PI / 180;
 const Y = new THREE.Vector3(0, 1, 0);
@@ -60,6 +61,8 @@ export class TestRoom {
     this.rooms = [];
     this.triggerZones = [];
     this.animated = [];
+    /** @type {Student[]} */
+    this.students = [];
 
     const s = data.spawn;
     this.spawn = { position: new THREE.Vector3().fromArray(s.position), yaw: s.yaw };
@@ -104,6 +107,7 @@ export class TestRoom {
     this._buildTriggers();
     this._buildDecorations();
     for (const r of this.data.rooms) this.rooms.push(buildRoom(this, r));
+    this._studentQueue = [...(this.data.students ?? [])];
     for (const z of this.data.gradeZones) this.ctx.grading?.addZone(z);
 
     for (const mesh of this.batcher.build()) this.root.add(mesh);
@@ -496,9 +500,33 @@ export class TestRoom {
     this.materials.lampGlass.emissiveIntensity = lampsOn && lead ? 2.4 * lead.level : 0.25;
   }
 
+  /**
+   * Build the next queued student (spread over frames so boot stays quick).
+   * @returns {boolean} true while more are queued
+   */
+  spawnNextStudent() {
+    const spec = this._studentQueue?.shift();
+    if (spec) {
+      const st = new Student(this.ctx, spec);
+      this.students.push(st);
+      this.ctx.bus.emit('room:characterAdded', { character: st.character });
+    }
+    return !!this._studentQueue?.length;
+  }
+
+  /**
+   * Animate the background students (after the player, before rendering).
+   * @param {number} dt
+   * @param {{camera:THREE.Camera, player:THREE.Vector3, playerHead:THREE.Vector3, wind:THREE.Vector3}} env
+   */
+  updateCharacters(dt, env) {
+    for (const s of this.students) s.update(dt, env);
+  }
+
   /** Entities exposed to the debug panel. */
   get debugEntities() {
     return [
+      ...this.students.map((s) => ({ name: s.name, state: s.debugState })),
       ...this.dummies.map((d) => ({ name: d.name, state: d.debugState })),
       ...this.movers.map((m) => ({ name: `Platform: ${m.id}`, state: m.debugState })),
     ];
@@ -508,6 +536,7 @@ export class TestRoom {
     for (const src of this.lightSources) this.ctx.lights.remove(src);
     for (const m of this.ownedMaterials) m.dispose();
     for (const d of this.dummies) d.dispose();
+    for (const st of this.students) st.dispose();
     for (const c of this.colliders) this.ctx.physics.removeCollider(c);
     for (const d of this.dynamicBodies) this.ctx.physics.removeDynamic(d);
     for (const m of this.movers) this.ctx.physics.removeKinematic(m.body);

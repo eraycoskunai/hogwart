@@ -274,6 +274,19 @@ export const TEST_ROOM = {
     { name: 'Hedefler', pos: [0, 0, -9], yaw: 0 },
     { name: 'Büyük Salon', pos: [27.5, 0, 39.5], yaw: -Math.PI / 2 },
     { name: 'Zindan', pos: [-13, 0.05, -40.5], yaw: 0 },
+    { name: 'Öğrenciler', pos: [1, 0, 11], yaw: 0.3 },
+  ],
+
+  /**
+   * Background students (Phase 4 character showcase). Seeds pick their
+   * look, name and house; behaviours: idle, walk (to), cast (target), sit.
+   */
+  students: [
+    { seed: 1101, behavior: 'idle', pos: [-3.2, 0, 8.6], yaw: -2.6 },
+    { seed: 2207, behavior: 'walk', pos: [4.5, 0, 7], to: [4.5, 0, -3.5], yaw: Math.PI },
+    { seed: 3313, behavior: 'cast', pos: [-0.8, 0, -8.8], target: [-2.5, 1.2, -17], yaw: 0 },
+    { seed: 4421, behavior: 'sit', pos: [31.5, 0, 35.31], yaw: Math.PI },
+    { seed: 5527, behavior: 'idle', pos: [6.4, 0, 12.2], yaw: -2.1, outfit: 'quidditch' },
   ],
 
   cinematics: {

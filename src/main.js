@@ -2,7 +2,8 @@
  * @file main.js — bootstraps every system and runs the game loop:
  * fixed 1/60 s physics steps, variable-rate rendering with interpolation.
  *
- * Game flow (StateMachine): boot → play ⇄ pause, play → cinematic → play.
+ * Game flow (StateMachine): boot → creator → play ⇄ pause, play → cinematic → play,
+ * boot / play → gallery.
  */
 import * as THREE from 'three';
 import { GAME } from './data/game.js';
@@ -35,21 +36,42 @@ import { TextureFactory } from './procgen/textures/TextureFactory.js';
 import { MaterialLibrary } from './render/MaterialLibrary.js';
 import { MaterialGallery } from './world/MaterialGallery.js';
 import { TEXTURE_GEN_VERSION, TEXTURE_CACHE_DB, MAX_TEXTURE_WORKERS } from './data/materials.js';
+import { CHARACTER_MATERIAL_KEYS } from './procgen/characters/Character.js';
+import { sanitizeCharacter, randomAppearance, randomName } from './procgen/characters/Appearance.js';
+import { describeWand, wandStats } from './procgen/characters/WandGenerator.js';
+import { HOUSES } from './data/character.js';
+import { CreatorStage } from './world/CreatorStage.js';
+import { CharacterCreator } from './ui/CharacterCreator.js';
 
 /** Boot progress-bar ranges for each loading stage. */
 const BOOT_STAGES = Object.freeze({ textures: [0.12, 0.72] });
-/** Materials the player avatar uses (loaded with the room). */
-const AVATAR_MATERIALS = Object.freeze(['robeFabric']);
+/** Save layout migrations: version → upgrade to the next version. */
+const SAVE_MIGRATIONS = Object.freeze({
+  // v2 adds the created character (older saves get the default student).
+  1: (d) => ({ ...d, character: null }),
+});
+/** How far the head / wand targets are projected along the view (m). */
+const VIEW_TARGET = Object.freeze({ look: 10, aim: 60, studentLook: 6, studentCone: 0.75 });
 const MENU_ORBIT = Object.freeze({ radius: 46, height: 19, speed: 0.045, look: [0, 3, -6] });
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const _v = new THREE.Vector3();
 const _focus = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _look = new THREE.Vector3();
+const _aim = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
+const _to = new THREE.Vector3();
+const _wind = new THREE.Vector3();
+const _head = new THREE.Vector3();
+const _hit = { distance: 0, point: new THREE.Vector3(), normal: new THREE.Vector3(), collider: null };
 
 class Game {
   constructor() {
     this.bus = bus;
     this.settings = new Settings(bus, GAME.storagePrefix);
-    this.saves = new SaveSystem({ prefix: GAME.storagePrefix, version: GAME.saveVersion, slots: GAME.saveSlots });
+    this.saves = new SaveSystem({ prefix: GAME.storagePrefix, version: GAME.saveVersion, slots: GAME.saveSlots }, SAVE_MIGRATIONS);
+    /** The created student (appearance, name, house, outfit, wand). */
+    this.characterData = sanitizeCharacter(null);
     this.time = new Time(GAME);
     this.cache = new AssetCache();
     this.canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
@@ -57,7 +79,7 @@ class Game {
     this.playtime = 0;
     this._autosaveTimer = GAME.autosaveInterval;
     this._hadPointerLock = false;
-    this.toggles = { collision: false, noclip: false, god: false, hud: true };
+    this.toggles = { collision: false, noclip: false, god: false, hud: true, skeleton: false, ik: true, cloth: true };
     this._loop = (t) => this.frame(t);
   }
 
@@ -85,7 +107,7 @@ class Game {
       this._progress(`Dokular üretiliyor… ${done} / ${total}`, p0 + (p1 - p0) * (total ? done / total : 1));
     });
     const t0 = performance.now();
-    await this.library.load([...TestRoom.materialKeys(TEST_ROOM), ...AVATAR_MATERIALS], 'Dokular');
+    await this.library.load([...new Set([...TestRoom.materialKeys(TEST_ROOM), ...CHARACTER_MATERIAL_KEYS])], 'Dokular');
     offProgress();
     this.textureLoadMs = performance.now() - t0;
 
@@ -99,7 +121,7 @@ class Game {
     this.physics = new PhysicsWorld(bus);
     this.triggers = new TriggerSystem(bus);
 
-    this._progress('Test salonu inşa ediliyor…', 0.8);
+    this._progress('Test salonu ve öğrenciler hazırlanıyor…', 0.8);
     await nextFrame();
     const atm = this.atmosphere;
     this.room = new TestRoom({
@@ -109,7 +131,9 @@ class Game {
 
     this._progress('Karakter hazırlanıyor…', 0.88);
     await nextFrame();
-    this.player = new Player({ bus, physics: this.physics, settings: this.settings, scene: this.scene, library: this.library });
+    this.player = new Player({ bus, physics: this.physics, settings: this.settings, scene: this.scene, library: this.library, preset, character: this.characterData });
+    // Keep the wand rolled for this student.
+    this.characterData.wand = this.player.character.data.wand;
     this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
     this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
     this.atmosphere.registerNow();
@@ -141,9 +165,16 @@ class Game {
         this.hud.notice('Doku önbelleği temizlendi; sonraki açılışta yeniden üretilecek');
       },
     });
+    this.creatorStage = new CreatorStage({ renderer: this.renderer, library: this.library, bus });
+    this.creator = new CharacterCreator(document.getElementById('creator'), {
+      stage: this.creatorStage,
+      onDone: (data) => this._finishCreator(data),
+      onCancel: () => this.fsm.change(this._creatorReturn ?? 'boot'),
+    });
     this.debugDraw = new DebugDraw(this.scene, this.physics, this.triggers);
     this.debug = new Debug(document.getElementById('debug'), bus, this._debugProvider());
 
+    this._spawningStudents = true;
     this._wireEvents();
     this.fsm = new StateMachine(this, this._states(), (from, to) => bus.emit('game:state', { from, to }));
     this._progress('Hazır', 1);
@@ -165,7 +196,7 @@ class Game {
           g._menuAngle = 0;
         },
         exit: (g, next) => {
-          if (next === 'gallery') return;
+          if (next === 'gallery' || next === 'creator') return;
           g.bootEl.classList.add('gone');
           g.hud.setVisible(g.toggles.hud);
           g.cameraRig.blendFromCurrent(1.4);
@@ -176,6 +207,29 @@ class Game {
           g.camera.position.set(Math.sin(a) * MENU_ORBIT.radius, MENU_ORBIT.height, Math.cos(a) * MENU_ORBIT.radius);
           g.camera.lookAt(_v.fromArray(MENU_ORBIT.look));
         },
+      },
+      creator: {
+        enter: (g, prev, opts = {}) => {
+          g._creatorReturn = prev === 'play' || prev === 'pause' ? 'play' : 'boot';
+          g._creatorMode = opts.mode ?? 'edit';
+          g.input.gameplayEnabled = false;
+          g.input.exitPointerLock();
+          g.hud.setVisible(false);
+          g.bootEl.classList.add('gone');
+          const start = opts.mode === 'new' ? { ...g.characterData, appearance: randomAppearance(Math.random), ...randomName(Math.random), wand: null } : g.characterData;
+          g.creatorStage.open(start);
+          g.creator.show(start, { confirmLabel: opts.mode === 'new' ? 'Maceraya başla' : 'Kaydet' });
+        },
+        exit: (g, next) => {
+          g.creator.hide();
+          g.creatorStage.close();
+          if (next === 'boot') g.bootEl.classList.remove('gone');
+          else {
+            g.hud.setVisible(g.toggles.hud);
+            g.cameraRig.blendFromCurrent(1.2);
+          }
+        },
+        update: (g, dt) => g.creatorStage.update(dt),
       },
       gallery: {
         enter: async (g, prev) => {
@@ -276,6 +330,8 @@ class Game {
       this.camera.updateProjectionMatrix();
     });
     bus.on('weather:changed', ({ label }) => this.hud?.notice(`Hava: ${label}`));
+    bus.on('player:rebuilt', () => this.atmosphere.registerNow());
+    bus.on('room:characterAdded', () => this.atmosphere.registerNow());
     bus.on('trigger:enter', ({ data }) => {
       if (data.cinematic && this.fsm.is('play')) {
         const shot = this.room.cinematics[data.cinematic];
@@ -308,10 +364,62 @@ class Game {
           this.fsm.change('gallery');
           return;
         }
+        if (btn.dataset.boot === 'new') {
+          this.fsm.change('creator', { mode: 'new' });
+          return;
+        }
         if (btn.dataset.boot === 'continue') this.loadGame(this.saves.latestSlot());
         this.fsm.change('play');
       });
     }
+  }
+
+  // ------------------------------------------------------------ creator
+
+  /** @param {any} data character returned by the creator */
+  _finishCreator(data) {
+    const wand = this.creatorStage.character?.data?.wand ?? null;
+    this.characterData = sanitizeCharacter({ ...data, wand });
+    this.player.setCharacter(this.characterData);
+    this.characterData.wand = this.player.character.data.wand;
+    if (this._creatorMode === 'new') {
+      this.playtime = 0;
+      this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
+      this.cameraRig.snapTo(this.room.spawn.position, this.room.spawn.yaw);
+    }
+    this.fsm.change('play');
+    this.hud.notice(`Hoş geldin, ${this.characterData.firstName}!`);
+  }
+
+  /** Point the player's head / wand: lock target, aim point, nearby students or the view. */
+  _updateViewTargets() {
+    const p = this.player;
+    const cam = this.camera;
+    cam.getWorldDirection(_dir);
+    if (this.cameraRig.getLockPoint(_look)) {
+      p.lookTarget = _look;
+    } else {
+      // Nearest student roughly in front of the player.
+      let best = null;
+      let bestD = VIEW_TARGET.studentLook;
+      _fwd.set(-Math.sin(p.yaw), 0, -Math.cos(p.yaw));
+      for (const st of this.room.students) {
+        st.headPoint(_v);
+        const d = _v.distanceTo(p.position);
+        if (d > bestD) continue;
+        _to.subVectors(_v, p.position).setY(0).normalize();
+        if (_to.dot(_fwd) < VIEW_TARGET.studentCone) continue;
+        best = st;
+        bestD = d;
+      }
+      if (best) p.lookTarget = best.headPoint(_look);
+      else p.lookTarget = _look.copy(cam.position).addScaledVector(_dir, VIEW_TARGET.look);
+    }
+    if (p.intent.aim) {
+      const hit = this.physics.raycast(cam.position, _dir, VIEW_TARGET.aim, {}, _hit);
+      p.aimTarget = hit ? _aim.copy(hit.point) : _aim.copy(cam.position).addScaledVector(_dir, VIEW_TARGET.aim);
+      p.lookTarget = p.aimTarget;
+    } else p.aimTarget = null;
   }
 
   // ----------------------------------------------------------- save/load
@@ -322,6 +430,7 @@ class Game {
       clock: this.clock.serialize(),
       weather: this.atmosphere.weather.serialize(),
       playtime: this.playtime,
+      character: this.characterData,
       player: this.player.serialize(),
       camera: { yaw: this.cameraRig.yaw, pitch: this.cameraRig.pitch },
     };
@@ -341,6 +450,12 @@ class Game {
     }
     const d = env.data;
     this.playtime = Number(d.playtime) || 0;
+    const character = sanitizeCharacter(d.character);
+    if (JSON.stringify(character) !== JSON.stringify(this.characterData)) {
+      this.characterData = character;
+      this.player.setCharacter(character);
+      this.characterData.wand = this.player.character.data.wand;
+    }
     this.player.deserialize(d.player);
     this.clock.deserialize(d.clock);
     this.atmosphere.weather.deserialize(d.weather);
@@ -376,6 +491,7 @@ class Game {
             Kalite: QUALITY_PRESETS[this.renderer.quality].label,
           },
           'Zaman ve hava': this.atmosphere.stats,
+          Karakter: this._characterStats(),
           Dokular: {
             'Çözünürlük': `${this.library.size} px`,
             'İşçi (worker)': this.textureFactory.stats.workers || 'yok (ana iş parçacığı)',
@@ -416,6 +532,15 @@ class Game {
           if (key === 'noclip') this.player.controller.noclip = this.toggles.noclip;
           if (key === 'god') this.player.godMode = this.toggles.god;
           if (key === 'hud') this.hud.setVisible(this.toggles.hud);
+          if (key === 'skeleton') this._ensureSkeletonHelper();
+          if (key === 'ik') {
+            this.player.animator.ikEnabled = this.toggles.ik;
+            this.player.animator.lookEnabled = this.toggles.ik;
+          }
+          if (key === 'cloth') {
+            this.player.character.simulateCloth = this.toggles.cloth;
+            for (const st of this.room.students) st.character.simulateCloth = this.toggles.cloth;
+          }
         },
         timeScale: (v) => {
           this.time.scale = v;
@@ -442,7 +567,61 @@ class Game {
           this.atmosphere.weather.roll();
         },
         strike: () => this.atmosphere.weather.strike(400),
+        anim: (name, loop) => {
+          const a = this.player.animator;
+          if (loop && a.isPlaying(name)) a.stop(name);
+          else a.play(name, { loop });
+        },
+        expression: (name) => this.player.face.setExpression(name),
+        say: () => this.player.face.say(`Merhaba, ben ${this.characterData.firstName}.`),
+        house: (h) => this._editCharacter({ house: h }),
+        outfit: () => this._editCharacter({ outfit: this.characterData.outfit === 'uniform' ? 'quidditch' : 'uniform' }),
+        randomCharacter: () => this._editCharacter({ appearance: randomAppearance(Math.random), ...randomName(Math.random) }),
+        editCharacter: () => {
+          if (this.fsm.is('play') || this.fsm.is('pause')) this.fsm.change('creator', { mode: 'edit' });
+        },
       },
+    };
+  }
+
+  /** Apply a partial change to the player's character (debug). */
+  _editCharacter(patch) {
+    this.characterData = sanitizeCharacter({ ...this.characterData, ...patch });
+    this.player.setCharacter(this.characterData);
+    this.characterData.wand = this.player.character.data.wand;
+    this.player.character.simulateCloth = this.toggles.cloth;
+    this._ensureSkeletonHelper();
+  }
+
+  _ensureSkeletonHelper() {
+    if (this.skeletonHelper) {
+      this.scene.remove(this.skeletonHelper);
+      this.skeletonHelper.dispose();
+      this.skeletonHelper = null;
+    }
+    if (!this.toggles.skeleton) return;
+    this.skeletonHelper = new THREE.SkeletonHelper(this.player.character.root);
+    this.skeletonHelper.material.depthTest = false;
+    this.skeletonHelper.renderOrder = 10;
+    this.scene.add(this.skeletonHelper);
+  }
+
+  _characterStats() {
+    const c = this.player.character;
+    const st = c.stats;
+    const a = this.player.animator.summary;
+    const d = this.characterData;
+    const ws = wandStats(d.wand);
+    const pct = (x) => `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`;
+    return {
+      Ad: `${d.firstName} ${d.lastName} · ${HOUSES[d.house].label}`,
+      Asa: describeWand(d.wand),
+      'Asa etkisi': `güç ${pct(ws.power)} · kontrol ${pct(ws.control)} · hız ${pct(ws.speed)} · odak ${pct(ws.focus)}`,
+      'Kemik / üçgen': `${st.bones} / ${st.triangles.toLocaleString('tr-TR')}`,
+      'Kumaş parçacığı': st.particles,
+      'Üretim süresi': `${st.buildMs.toFixed(0)} ms`,
+      Animasyon: `${a.locomotion} · faz ${a.phase.toFixed(2)} · ${a.actions}`,
+      IK: `${a.ik} · kalça ${(a.hipsDrop * 100).toFixed(1)} cm`,
     };
   }
 
@@ -456,6 +635,8 @@ class Game {
     this.input.update();
 
     if (this.input.pressed('debug')) this.debug.toggle();
+    // Background students are generated one per frame after boot.
+    if (this._spawningStudents && !this.fsm.is('creator') && !this.fsm.is('gallery')) this._spawningStudents = this.room.spawnNextStudent();
     this.fsm.update(time.unscaledDt);
 
     const simulate = this.fsm.is('play') || this.fsm.is('cinematic');
@@ -472,6 +653,8 @@ class Game {
     this.library.update(time.dt);
     if (this.fsm.is('gallery')) {
       if (this.gallery.active) this.gallery.render();
+    } else if (this.fsm.is('creator')) {
+      if (this.creatorStage.active) this.creatorStage.render();
     } else {
       // Game time runs everywhere except in menus.
       const gameHours = this.fsm.is('pause') ? 0 : this.clock.update(time.dt);
@@ -518,8 +701,14 @@ class Game {
    */
   lateUpdate(dt, alpha) {
     const player = this.player;
-    player.render(dt, alpha, this.fsm.is('boot') ? 10 : this.cameraRig.distance);
+    const w = this.atmosphere.weather.wind;
+    _wind.set(w.x, 0, w.y);
+    if (!this.fsm.is('boot')) this._updateViewTargets();
+    player.render(dt, alpha, this.fsm.is('boot') ? 10 : this.cameraRig.distance, { camera: this.camera, wind: _wind });
+    _head.copy(player.visualPosition).setY(player.visualPosition.y + player.character.height * 0.93);
+    this.room.updateCharacters(dt, { camera: this.camera, player: player.visualPosition, playerHead: _head, wind: _wind });
     this.physics.syncVisuals(alpha);
+    if (this.skeletonHelper) this.skeletonHelper.visible = this.toggles.skeleton;
 
     if (this.fsm.is('cinematic')) this.cinematic.update(dt);
     else if (!this.fsm.is('boot')) {

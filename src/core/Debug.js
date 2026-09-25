@@ -4,6 +4,16 @@
  * shapes, noclip, god mode), time scale and a teleport menu.
  */
 import { WEATHER_TYPES } from '../data/atmosphere.js';
+import { EXPRESSIONS, HOUSES } from '../data/character.js';
+
+/** Animation test buttons: [clip, label, looping toggle]. */
+const ANIM_BUTTONS = Object.freeze([
+  ['castFlick', 'Büyü: fiske'], ['castThrust', 'Büyü: itme'], ['castSweep', 'Büyü: savurma'], ['castLift', 'Büyü: kaldırma'],
+  ['castPull', 'Büyü: çekme'], ['castSlam', 'Büyü: çarpma'], ['castCircle', 'Büyü: daire'], ['castUtility', 'Büyü: basit'],
+  ['shield', 'Kalkan', true], ['dodgeRoll', 'Yuvarlan'], ['hit', 'Darbe'], ['stun', 'Sersem', true], ['sit', 'Otur', true],
+  ['wave', 'Selam'], ['fidgetLook', 'Etrafa bak'], ['broomMount', 'Süpürgeye bin'], ['broomDismount', 'Süpürgeden in'],
+  ['flightHover', 'Uçuş: süzül', true], ['flightForward', 'Uçuş: ileri', true], ['flightDive', 'Uçuş: dalış', true],
+]);
 
 export const DEBUG_UI = Object.freeze({
   textRefresh: 0.2,
@@ -62,6 +72,15 @@ export class Debug {
           <button data-dbg-act="weatherAuto">Otomatik</button><button data-dbg-act="strike">Şimşek</button>
         </div>
       </div>
+      <div class="dbg-section"><h4>Karakter</h4>
+        <div class="dbg-buttons">${ANIM_BUTTONS.map(([k, l, loop]) => `<button data-dbg-anim="${k}" data-dbg-loop="${loop ? 1 : 0}">${l}</button>`).join('')}</div>
+        <div class="dbg-buttons">${Object.entries(EXPRESSIONS).map(([k, e]) => `<button data-dbg-expr="${k}">${e.label}</button>`).join('')}<button data-dbg-act="say">Konuş</button></div>
+        <div class="dbg-buttons">${Object.entries(HOUSES).map(([k, h]) => `<button data-dbg-house="${k}">${h.label}</button>`).join('')}</div>
+        <div class="dbg-buttons">
+          <button data-dbg-act="outfit">Kıyafet değiştir</button><button data-dbg-act="randomCharacter">Rastgele karakter</button>
+          <button data-dbg-act="editCharacter">Karakter yaratma ekranı</button>
+        </div>
+      </div>
       <div class="dbg-section"><h4>Işınlan</h4><div class="dbg-teleports"></div></div>
       <div class="dbg-section"><h4>Yapay zekâ / varlıklar</h4><div class="dbg-ai"></div></div>`;
     this.graph = /** @type {HTMLCanvasElement} */ (root.querySelector('.dbg-graph'));
@@ -80,6 +99,9 @@ export class Debug {
       else if (b.dataset.dbgSpeed) this.p.actions.timeSpeed(Number(b.dataset.dbgSpeed));
       else if (b.dataset.dbgWeather) this.p.actions.weather(b.dataset.dbgWeather);
       else if (b.dataset.dbgAct) this.p.actions[b.dataset.dbgAct]?.();
+      else if (b.dataset.dbgAnim) this.p.actions.anim(b.dataset.dbgAnim, b.dataset.dbgLoop === '1');
+      else if (b.dataset.dbgExpr) this.p.actions.expression(b.dataset.dbgExpr);
+      else if (b.dataset.dbgHouse) this.p.actions.house(b.dataset.dbgHouse);
       else if (b.dataset.dbgToggle) this.p.actions.toggle(b.dataset.dbgToggle);
       this._renderToggles();
     });
@@ -105,7 +127,7 @@ export class Debug {
   }
 
   _renderToggles() {
-    const labels = { collision: 'Çarpışma şekilleri', noclip: 'Noclip (uç)', god: 'Ölümsüzlük', hud: 'HUD' };
+    const labels = { collision: 'Çarpışma şekilleri', noclip: 'Noclip (uç)', god: 'Ölümsüzlük', hud: 'HUD', skeleton: 'İskelet', ik: 'IK', cloth: 'Kumaş simülasyonu' };
     const t = this.p.getToggles();
     this.togglesEl.innerHTML = Object.entries(labels)
       .map(([k, l]) => `<button class="${t[k] ? 'on' : ''}" data-dbg-toggle="${k}">${l}: ${t[k] ? 'açık' : 'kapalı'}</button>`)
