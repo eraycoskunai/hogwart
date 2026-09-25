@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { PLAYER, PHYSICS } from '../data/physics.js';
 import { DIFFICULTIES } from '../data/settings.js';
 import { CharacterController } from '../physics/CharacterController.js';
-import { buildMannequin, setMannequinOpacity } from '../procgen/characters/Mannequin.js';
+import { buildMannequin, setMannequinOpacity, applyRobeMaterial } from '../procgen/characters/Mannequin.js';
 import { ProceduralAnimator } from '../animation/ProceduralAnimator.js';
 
 const _fwd = new THREE.Vector3();
@@ -25,7 +25,8 @@ function angleDelta(a, b) {
 export class Player {
   /**
    * @param {{bus:import('../core/EventBus.js').EventBus, physics:import('../physics/PhysicsWorld.js').PhysicsWorld,
-   *          settings:import('../core/Settings.js').Settings, scene:THREE.Scene}} ctx
+   *          settings:import('../core/Settings.js').Settings, scene:THREE.Scene,
+   *          library?:import('../render/MaterialLibrary.js').MaterialLibrary}} ctx
    */
   constructor(ctx) {
     this.bus = ctx.bus;
@@ -34,6 +35,10 @@ export class Player {
     this.controller = new CharacterController(ctx.physics, PLAYER);
 
     this.rig = buildMannequin();
+    if (ctx.library?.isLoaded('robeFabric')) {
+      // Robe fades when the camera is close, so it gets its own (unshared) instance.
+      applyRobeMaterial(this.rig, ctx.library.get('robeFabric', { surface: { variation: 0 } }));
+    }
     this.animator = new ProceduralAnimator(this.rig);
     ctx.scene.add(this.rig.root);
 

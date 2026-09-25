@@ -229,6 +229,21 @@ export function buildMannequin(colors = {}) {
 }
 
 /**
+ * Swap the robe cloth for a library material (procedural woven fabric).
+ * The previous robe material is disposed; the new one is owned by the caller.
+ * @param {MannequinRig} rig
+ * @param {THREE.Material} material
+ */
+export function applyRobeMaterial(rig, material) {
+  const old = rig.materials[0];
+  rig.root.traverse((o) => {
+    if (o.material === old) o.material = material;
+  });
+  rig.materials[0] = material;
+  old.dispose();
+}
+
+/**
  * Fade the figure (camera very close). Uses dithered-free alpha blending.
  * @param {MannequinRig} rig
  * @param {number} opacity 0..1
@@ -249,6 +264,6 @@ export function setMannequinOpacity(rig, opacity) {
 /** @param {MannequinRig} rig */
 export function disposeMannequin(rig) {
   rig.root.traverse((o) => o.geometry?.dispose());
-  for (const m of rig.materials) m.dispose();
+  for (const m of rig.materials) if (!m.userData.shared) m.dispose();
   rig.root.removeFromParent();
 }

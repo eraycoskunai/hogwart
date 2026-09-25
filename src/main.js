@@ -30,7 +30,17 @@ import { Player } from './gameplay/Player.js';
 import { TestRoom } from './world/TestRoom.js';
 import { HUD } from './ui/HUD.js';
 import { PauseMenu } from './ui/PauseMenu.js';
+import { GalleryPanel } from './ui/GalleryPanel.js';
+import { TextureFactory } from './procgen/textures/TextureFactory.js';
+import { MaterialLibrary } from './render/MaterialLibrary.js';
+import { createSkyEnvironment } from './render/Environment.js';
+import { MaterialGallery } from './world/MaterialGallery.js';
+import { TEXTURE_GEN_VERSION, TEXTURE_CACHE_DB, MAX_TEXTURE_WORKERS } from './data/materials.js';
 
+/** Boot progress-bar ranges for each loading stage. */
+const BOOT_STAGES = Object.freeze({ textures: [0.12, 0.72] });
+/** Materials the player avatar uses (loaded with the room). */
+const AVATAR_MATERIALS = Object.freeze(['robeFabric']);
 const MENU_ORBIT = Object.freeze({ radius: 46, height: 19, speed: 0.045, look: [0, 3, -6] });
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const _v = new THREE.Vector3();
@@ -73,19 +83,32 @@ class Game {
     this.scene.fog = new THREE.FogExp2(env.fog.color, env.fog.density * preset.fogDensityScale);
     this.lighting = new SceneLighting(this.scene, bus, env.lighting, preset);
     this.sky.setSunDirection(this.lighting.sunDir);
+    this.scene.environment = createSkyEnvironment(this.renderer.renderer, env.sky, this.lighting.sunDir);
 
-    this._progress('Fizik dünyası kuruluyor…', 0.3);
+    // Procedural materials: generated in workers, cached in IndexedDB.
+    this.textureFactory = new TextureFactory(bus, { version: TEXTURE_GEN_VERSION, dbName: TEXTURE_CACHE_DB, maxWorkers: MAX_TEXTURE_WORKERS });
+    this.library = new MaterialLibrary({ bus, renderer: this.renderer.renderer, factory: this.textureFactory, size: preset.textureSize });
+    const [p0, p1] = BOOT_STAGES.textures;
+    const offProgress = bus.on('textures:progress', ({ done, total }) => {
+      this._progress(`Dokular üretiliyor… ${done} / ${total}`, p0 + (p1 - p0) * (total ? done / total : 1));
+    });
+    const t0 = performance.now();
+    await this.library.load([...TestRoom.materialKeys(TEST_ROOM), ...AVATAR_MATERIALS], 'Dokular');
+    offProgress();
+    this.textureLoadMs = performance.now() - t0;
+
+    this._progress('Fizik dünyası kuruluyor…', 0.75);
     await nextFrame();
     this.physics = new PhysicsWorld(bus);
     this.triggers = new TriggerSystem(bus);
 
-    this._progress('Test salonu inşa ediliyor…', 0.5);
+    this._progress('Test salonu inşa ediliyor…', 0.8);
     await nextFrame();
-    this.room = new TestRoom({ scene: this.scene, physics: this.physics, triggers: this.triggers, bus, preset }, TEST_ROOM).build();
+    this.room = new TestRoom({ scene: this.scene, physics: this.physics, triggers: this.triggers, bus, preset, library: this.library }, TEST_ROOM).build();
 
-    this._progress('Karakter hazırlanıyor…', 0.75);
+    this._progress('Karakter hazırlanıyor…', 0.88);
     await nextFrame();
-    this.player = new Player({ bus, physics: this.physics, settings: this.settings, scene: this.scene });
+    this.player = new Player({ bus, physics: this.physics, settings: this.settings, scene: this.scene, library: this.library });
     this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
     this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
     this.cameraRig = new ThirdPersonCamera(this.camera, this.physics, this.settings, bus);
@@ -103,6 +126,17 @@ class Game {
       onSave: (slot) => this.saveGame(slot, `Yuva ${slot}`),
       onLoad: (slot) => {
         if (this.loadGame(slot)) this.fsm.change('play');
+      },
+    });
+    this.gallery = new MaterialGallery({ renderer: this.renderer, library: this.library, bus });
+    this.galleryPanel = new GalleryPanel(document.getElementById('gallery'), {
+      gallery: this.gallery,
+      library: this.library,
+      bus,
+      onExit: () => this.fsm.change(this._galleryReturn ?? 'boot'),
+      onRegenerate: async () => {
+        await this.textureFactory.clearPersistentCache();
+        this.hud.notice('Doku önbelleği temizlendi; sonraki açılışta yeniden üretilecek');
       },
     });
     this.debugDraw = new DebugDraw(this.scene, this.physics, this.triggers);
@@ -128,7 +162,8 @@ class Game {
           g.bootEl.querySelector('[data-boot="continue"]').toggleAttribute('hidden', !hasSave);
           g._menuAngle = 0;
         },
-        exit: (g) => {
+        exit: (g, next) => {
+          if (next === 'gallery') return;
           g.bootEl.classList.add('gone');
           g.hud.setVisible(g.toggles.hud);
           g.cameraRig.blendFromCurrent(1.4);
@@ -138,6 +173,30 @@ class Game {
           const a = g._menuAngle;
           g.camera.position.set(Math.sin(a) * MENU_ORBIT.radius, MENU_ORBIT.height, Math.cos(a) * MENU_ORBIT.radius);
           g.camera.lookAt(_v.fromArray(MENU_ORBIT.look));
+        },
+      },
+      gallery: {
+        enter: async (g, prev) => {
+          g._galleryReturn = prev === 'boot' ? 'boot' : 'play';
+          g.input.gameplayEnabled = false;
+          g.input.exitPointerLock();
+          g.hud.setVisible(false);
+          g.bootEl.classList.add('gone');
+          g.galleryPanel.show();
+          await g.library.load(g.library.keys, 'Galeri dokuları');
+          if (!g.fsm.is('gallery')) return;
+          g.gallery.open();
+          g.gallery.setLightAngle(0.9);
+        },
+        exit: (g, next) => {
+          g.gallery.close();
+          g.galleryPanel.hide();
+          if (next === 'boot') g.bootEl.classList.remove('gone');
+          else g.hud.setVisible(g.toggles.hud);
+        },
+        update: (g, dt) => {
+          g.gallery.update(dt);
+          if (g.input.pressed('pause')) g.fsm.change(g._galleryReturn);
         },
       },
       play: {
@@ -241,6 +300,10 @@ class Game {
 
     for (const btn of this.bootEl.querySelectorAll('[data-boot]')) {
       btn.addEventListener('click', () => {
+        if (btn.dataset.boot === 'gallery') {
+          this.fsm.change('gallery');
+          return;
+        }
         if (btn.dataset.boot === 'continue') this.loadGame(this.saves.latestSlot());
         this.fsm.change('play');
       });
@@ -304,6 +367,15 @@ class Game {
             Bellek: mem ? `${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'desteklenmiyor',
             Kalite: QUALITY_PRESETS[this.renderer.quality].label,
           },
+          Dokular: {
+            'Çözünürlük': `${this.library.size} px`,
+            'İşçi (worker)': this.textureFactory.stats.workers || 'yok (ana iş parçacığı)',
+            'Malzeme / doku seti': `${this.library.stats.materials} / ${this.library.stats.textures}`,
+            'Arka planda yükseltilen': this.library.stats.pending,
+            'Üretilen / önbellek': `${this.textureFactory.stats.generated} / ${this.textureFactory.stats.cacheHits}`,
+            'Açılış yüklemesi': `${fmt(this.textureLoadMs / 1000, 1)} s`,
+            Islaklık: fmt(this.library.shared.uWetness.value),
+          },
           Fizik: {
             'Adım (ms)': fmt(p.stepMs, 2),
             'Statik üçgen': p.staticTriangles,
@@ -347,6 +419,8 @@ class Game {
         resetProps: () => this.physics.resetAllDynamics(),
         hitStop: () => this.time.hitStop(0.25, 0.05),
         shake: () => this.cameraRig.addTrauma(0.8),
+        gallery: () => this.fsm.change('gallery'),
+        wetness: () => this.library.setWetness(this.library.shared.uWetness.value > 0.5 ? 0 : 1),
       },
     };
   }
@@ -374,8 +448,13 @@ class Game {
       time.accumulator = Math.max(0, time.accumulator - time.dt);
     }
     const alpha = time.computeAlpha();
-    this.lateUpdate(time.unscaledDt, alpha);
-    this.renderer.render(this.scene, this.camera);
+    this.library.update(time.dt);
+    if (this.fsm.is('gallery')) {
+      if (this.gallery.active) this.gallery.render();
+    } else {
+      this.lateUpdate(time.unscaledDt, alpha);
+      this.renderer.render(this.scene, this.camera);
+    }
     this.debug.update(time.unscaledDt * 1000, time.unscaledDt);
     this.input.endFrame();
   }

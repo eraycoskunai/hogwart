@@ -49,6 +49,8 @@ export class Debug {
           <button data-dbg-act="resetProps">Nesneleri sıfırla</button>
           <button data-dbg-act="hitStop">Hit-stop</button>
           <button data-dbg-act="shake">Sarsıntı</button>
+          <button data-dbg-act="wetness">Islak / kuru</button>
+          <button data-dbg-act="gallery">Malzeme galerisi</button>
         </div>
       </div>
       <div class="dbg-section"><h4>Işınlan</h4><div class="dbg-teleports"></div></div>

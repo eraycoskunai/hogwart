@@ -252,3 +252,41 @@ table.binds td { padding: 3px 0; }
 #debug button.on { background: rgba(90, 220, 150, 0.3); border-color: rgba(90, 220, 150, 0.7); color: #fff; }
 .dbg-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .dbg-row input { flex: 1; }
+
+/* ------------------------------------------------------------- gallery */
+
+#gallery {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 35; width: min(400px, 100vw); display: none;
+  flex-direction: column; background: rgba(14, 12, 20, 0.9); border-left: 1px solid rgba(201, 162, 74, 0.4);
+  color: #efe4cc; font-size: 14px;
+}
+#gallery.show { display: flex; }
+.gal-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px 6px; }
+.gal-head h2 { margin: 0; font-weight: normal; color: var(--gold-bright); font-variant: small-caps; letter-spacing: 0.06em; }
+.gal-progress { position: relative; height: 18px; margin: 0 14px 6px; background: rgba(255, 255, 255, 0.06); border-radius: 3px; overflow: hidden; }
+.gal-progress i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, #8a1f1a, var(--gold)); transition: width 0.2s; }
+.gal-progress span { position: relative; font-size: 12px; padding-left: 8px; line-height: 18px; }
+.gal-progress.done { opacity: 0.5; }
+.gal-body { flex: 1; display: grid; grid-template-columns: 140px 1fr; min-height: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.gal-list { overflow-y: auto; padding: 6px; border-right: 1px solid rgba(255, 255, 255, 0.08); }
+.gal-list h4 { margin: 10px 4px 4px; font-size: 11px; font-weight: normal; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); }
+.gal-list button {
+  display: block; width: 100%; text-align: left; margin: 1px 0; padding: 4px 6px; font-size: 12px;
+  color: #efe4cc; background: transparent; border: 1px solid transparent; box-shadow: none;
+}
+.gal-list button:hover { background: rgba(255, 255, 255, 0.06); }
+.gal-list button.active { border-color: rgba(201, 162, 74, 0.7); background: rgba(201, 162, 74, 0.15); }
+.gal-details { overflow-y: auto; padding: 10px 12px; }
+.gal-details h3 { margin: 0 0 4px; font-weight: normal; color: var(--gold-bright); }
+.gal-meta { font-size: 12px; color: #b9ad97; margin: 0 0 8px; }
+.gal-meta code { color: #d8c9a3; }
+.gal-hint { font-size: 12px; color: #9a8f7c; font-style: italic; }
+.gal-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.gal-maps figure { margin: 0; }
+.gal-maps canvas { width: 100%; aspect-ratio: 1; display: block; border: 1px solid rgba(255, 255, 255, 0.12); image-rendering: auto; }
+.gal-maps figcaption { font-size: 11px; color: #b9ad97; text-align: center; }
+.gal-details label, .gal-global label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; margin: 4px 0; }
+.gal-details input[type='range'], .gal-global input[type='range'] { width: 150px; accent-color: var(--gold); }
+.gal-check { justify-content: flex-start !important; }
+.gal-global { padding: 8px 14px 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.gal-global button { margin-top: 6px; font-size: 12px; padding: 4px 10px; }

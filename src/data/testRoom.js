@@ -15,7 +15,7 @@ export const TEST_ROOM = {
     lighting: {
       sky: 0xcfe0ff,
       ground: 0x5d5044,
-      hemiIntensity: 0.9,
+      hemiIntensity: 0.35,
       sunColor: 0xfff0d8,
       sunIntensity: 2.6,
       sunDirection: [0.45, 0.8, 0.35],
@@ -26,18 +26,43 @@ export const TEST_ROOM = {
     },
   },
 
-  /** Prototype surface palette: base colour + metres per texture tile. */
+  /**
+   * Surface materials: catalogue key (data/materials.js) + world tile size.
+   * Names are referenced by the layout below.
+   */
   materials: {
-    floor: { base: '#80878f', tile: 2, roughness: 0.92 },
-    wall: { base: '#b9ab91', tile: 2, roughness: 0.95 },
-    ramp: { base: '#cf8a45', tile: 2, roughness: 0.85 },
-    stairs: { base: '#43a39c', tile: 2, roughness: 0.85 },
-    platform: { base: '#8b76c2', tile: 2, roughness: 0.85 },
-    tower: { base: '#9aa1ab', tile: 2, roughness: 0.9 },
-    mover: { base: '#e2bf4f', tile: 2, roughness: 0.6, metalness: 0.1 },
-    pillar: { base: '#a8b0ba', tile: 2, roughness: 0.9 },
-    tunnel: { base: '#6f9160', tile: 2, roughness: 0.9 },
-    jump: { base: '#c86161', tile: 2, roughness: 0.85 },
+    floor: { key: 'flagstone', tile: 4 },
+    wall: { key: 'hogwartsStone', tile: 3, surface: { dampHeight: 1.4 } },
+    ramp: { key: 'cobblestone', tile: 3 },
+    stairs: { key: 'marble', tile: 2 },
+    platform: { key: 'woodParquet', tile: 3 },
+    tower: { key: 'hogwartsStone', tile: 2.5 },
+    // Moving objects must not use world-space (triplanar) mapping or the texture would swim.
+    mover: { key: 'brass', tile: 1.5, triplanar: false },
+    pillar: { key: 'marble:green', tile: 2 },
+    tunnel: { key: 'rock', tile: 4 },
+    jump: { key: 'woodPlanks:weathered', tile: 2.5, triplanar: true },
+    rim: { key: 'hogwartsStone', tile: 1.5 },
+    crate: { key: 'woodPlanks' },
+    crateDark: { key: 'woodPlanks:walnut' },
+    ball: { key: 'leather:red' },
+    iron: { key: 'wroughtIron', tile: 1 },
+    wood: { key: 'woodPlanks:walnut' },
+    burlap: { key: 'robeFabric:burlap' },
+    rod: { key: 'brass', tile: 1 },
+    water: { key: 'water', tile: 5 },
+  },
+
+  /** Decorative set dressing that showcases materials. */
+  decorations: {
+    tapestries: [
+      { key: 'tapestry:lion', pos: [8, 4.6, -47.97], size: [2.4, 3] },
+      { key: 'tapestry:badger', pos: [12, 4.6, -47.97], size: [2.4, 3] },
+      { key: 'tapestry:eagle', pos: [16, 4.6, -47.97], size: [2.4, 3] },
+      { key: 'tapestry:snake', pos: [20, 4.6, -47.97], size: [2.4, 3] },
+    ],
+    /** Shallow ornamental pool: outer size, rim thickness/height, water level. */
+    pool: { pos: [14, 0, 27], size: [6, 4], rim: 0.4, rimHeight: 0.42, waterLevel: 0.3 },
   },
 
   floor: { size: [96, 1, 96] },

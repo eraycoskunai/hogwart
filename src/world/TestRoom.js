@@ -3,12 +3,11 @@
  * measured ramps and stairs, fall-damage towers with an elevator, sliding
  * and rotating kinematic platforms, pushable props, a crouch tunnel, pillar
  * forest, jump course, lock-on dummies, lamps, labels and info triggers.
+ * Surfaces use procedural PBR materials from the MaterialLibrary (Phase 2).
  */
 import * as THREE from 'three';
 import { StaticBatcher, applyWorldUVs } from '../procgen/geometry/StaticBatcher.js';
-import {
-  gridTexture, crateTexture, stripeTexture, labelTexture, runeCircleTexture, rng,
-} from '../procgen/textures/DevTextures.js';
+import { labelTexture, runeCircleTexture } from '../procgen/textures/DevTextures.js';
 import { PathMover, RotateMover } from './Movers.js';
 import { TargetDummy } from '../gameplay/TargetDummy.js';
 import { disposeObject3D } from '../core/AssetCache.js';
@@ -26,6 +25,7 @@ export class TestRoom {
    * @param {{scene:THREE.Scene, physics:import('../physics/PhysicsWorld.js').PhysicsWorld,
    *          triggers:import('../physics/TriggerSystem.js').TriggerSystem,
    *          bus:import('../core/EventBus.js').EventBus,
+   *          library:import('../render/MaterialLibrary.js').MaterialLibrary,
    *          preset:import('../data/quality.js').QUALITY_PRESETS.medium}} ctx
    * @param {typeof import('../data/testRoom.js').TEST_ROOM} data
    */
@@ -37,8 +37,10 @@ export class TestRoom {
     ctx.scene.add(this.root);
 
     this.batcher = new StaticBatcher();
-    /** @type {Record<string, THREE.MeshStandardMaterial>} */
+    /** @type {Record<string, THREE.Material>} */
     this.materials = {};
+    /** Materials borrowed from the library (released on dispose). */
+    this.libraryMaterials = [];
     /** @type {THREE.Texture[]} */
     this.textures = [];
     /** @type {import('../physics/Collider.js').Collider[]} */
@@ -60,6 +62,16 @@ export class TestRoom {
     ctx.bus.on('render:quality', this._onQuality);
   }
 
+  /**
+   * Every material key the room needs (preload before build()).
+   * @param {typeof import('../data/testRoom.js').TEST_ROOM} data
+   */
+  static materialKeys(data) {
+    const keys = new Set(Object.values(data.materials).map((m) => m.key));
+    for (const t of data.decorations.tapestries) keys.add(t.key);
+    return [...keys];
+  }
+
   /** Every lock-on capable entity. */
   get lockTargets() {
     return this.dummies;
@@ -79,6 +91,7 @@ export class TestRoom {
     this._buildDummies();
     this._buildLamps();
     this._buildTriggers();
+    this._buildDecorations();
 
     for (const mesh of this.batcher.build()) this.root.add(mesh);
     this._applyLampBudget(this.ctx.preset.maxDynamicLights);
@@ -91,47 +104,21 @@ export class TestRoom {
   }
 
   _createMaterials() {
-    for (const [key, m] of Object.entries(this.data.materials)) {
-      const map = this._tex(gridTexture({ base: m.base, size: 512, seed: key.length * 31 }));
-      this.materials[key] = new THREE.MeshStandardMaterial({
-        name: key,
-        map,
-        roughness: m.roughness,
-        metalness: m.metalness ?? 0,
-      });
+    const lib = this.ctx.library;
+    for (const [name, m] of Object.entries(this.data.materials)) {
+      const ov = {};
+      if (m.tile != null) ov.tile = m.tile;
+      if (m.triplanar != null) ov.triplanar = m.triplanar;
+      if (m.surface) ov.surface = m.surface;
+      const mat = lib.get(m.key, ov);
+      this.libraryMaterials.push(mat);
+      this.materials[name] = mat;
     }
     const std = (name, o) => (this.materials[name] = new THREE.MeshStandardMaterial({ name, ...o }));
-    std('crate', { map: this._tex(crateTexture({ seed: 3 })), roughness: 0.82 });
-    std('crateDark', { map: this._tex(crateTexture({ seed: 9, tint: '#7a5230' })), roughness: 0.85 });
-    std('ball', { map: this._tex(stripeTexture('#c2452f', '#efe3c8', 6)), roughness: 0.55 });
-    std('iron', { color: 0x2e2f33, roughness: 0.55, metalness: 0.8 });
-    std('wood', { color: 0x7a5534, roughness: 0.8 });
-    std('burlap', { map: this._tex(this._burlapTexture()), roughness: 0.95 });
     std('rope', { color: 0x5a4630, roughness: 0.95 });
     std('target', { map: this._tex(this._targetTexture()), roughness: 0.7 });
     std('lampGlass', { color: 0xfff1d0, emissive: 0xffc27a, emissiveIntensity: 2.4, roughness: 0.2 });
     this.materials.glow = new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0.85 });
-  }
-
-  _burlapTexture() {
-    const size = 128;
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const g = c.getContext('2d');
-    g.fillStyle = '#b39868';
-    g.fillRect(0, 0, size, size);
-    const r = rng(5);
-    for (let i = 0; i < size; i += 4) {
-      g.fillStyle = `rgba(80,60,30,${0.15 + r() * 0.15})`;
-      g.fillRect(i, 0, 2, size);
-      g.fillStyle = `rgba(255,240,200,${0.08 + r() * 0.1})`;
-      g.fillRect(0, i, size, 2);
-    }
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(3, 2);
-    return t;
   }
 
   _targetTexture() {
@@ -218,7 +205,7 @@ export class TestRoom {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.computeVertexNormals();
-    this.batcher.add(geo, base, this.materials.ramp, 2);
+    this.batcher.add(geo, base, this.materials.ramp, this.data.materials.ramp.tile ?? 2);
     geo.dispose();
 
     if (r.platformDepth > 0) {
@@ -259,7 +246,7 @@ export class TestRoom {
     this.colliders.push(this.ctx.physics.addStaticCylinder(c.radius, c.height, m, { surface: 'stone', name: 'pillar' }));
     const geo = new THREE.CylinderGeometry(c.radius, c.radius, c.height, 28);
     const key = c.material ?? 'pillar';
-    this.batcher.add(geo, m, this.materials[key], 2);
+    this.batcher.add(geo, m, this.materials[key], this.data.materials[key]?.tile ?? 2);
     geo.dispose();
   }
 
@@ -396,6 +383,55 @@ export class TestRoom {
     }
   }
 
+  _buildDecorations() {
+    const dec = this.data.decorations;
+    const lib = this.ctx.library;
+    const rodGeo = new THREE.CylinderGeometry(0.035, 0.035, 1, 10);
+    rodGeo.rotateZ(Math.PI / 2);
+    for (const t of dec.tapestries) {
+      const mat = lib.get(t.key);
+      this.libraryMaterials.push(mat);
+      const [w, h] = t.size;
+      const cloth = new THREE.Mesh(new THREE.PlaneGeometry(w, h, 12, 12), mat);
+      // Gentle folds so the hanging cloth catches light.
+      const pos = cloth.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        pos.setZ(i, Math.sin((x / w) * Math.PI * 5) * 0.03 * (0.4 + (0.5 - y / h) * 0.6));
+      }
+      cloth.geometry.computeVertexNormals();
+      cloth.position.fromArray(t.pos);
+      cloth.castShadow = cloth.receiveShadow = true;
+      this.root.add(cloth);
+      const rod = new THREE.Mesh(rodGeo, this.materials.rod);
+      rod.scale.set(w + 0.3, 1, 1);
+      rod.position.set(t.pos[0], t.pos[1] + h / 2 + 0.02, t.pos[2] + 0.06);
+      rod.castShadow = true;
+      this.root.add(rod);
+    }
+
+    const p = dec.pool;
+    const [sx, sz] = p.size;
+    const r = p.rim;
+    const rh = p.rimHeight;
+    const rims = [
+      [0, (sz - r) / 2, sx, r],
+      [0, -(sz - r) / 2, sx, r],
+      [(sx - r) / 2, 0, r, sz - 2 * r],
+      [-(sx - r) / 2, 0, r, sz - 2 * r],
+    ];
+    for (const [ox, oz, w, d] of rims) {
+      const m = new THREE.Matrix4().makeTranslation(p.pos[0] + ox, rh / 2, p.pos[2] + oz);
+      this._staticBox(m, new THREE.Vector3(w, rh, d), 'rim');
+    }
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(sx - 2 * r, sz - 2 * r), this.materials.water);
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(p.pos[0], p.waterLevel, p.pos[2]);
+    water.receiveShadow = true;
+    this.root.add(water);
+  }
+
   // --------------------------------------------------------------- labels
 
   _labelMesh(text, w, h, texOpts = {}) {
@@ -456,6 +492,8 @@ export class TestRoom {
     for (const z of this.triggerZones) this.ctx.triggers.remove(z);
     disposeObject3D(this.root);
     for (const t of this.textures) t.dispose();
-    for (const m of Object.values(this.materials)) m.dispose();
+    const borrowed = new Set(this.libraryMaterials);
+    for (const m of Object.values(this.materials)) if (!borrowed.has(m)) m.dispose();
+    for (const m of this.libraryMaterials) this.ctx.library.release(m);
   }
 }
