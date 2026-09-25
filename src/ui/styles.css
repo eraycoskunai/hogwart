@@ -183,7 +183,7 @@ button.primary {
 .hud-center h2 { font-size: 44px; margin: 0; letter-spacing: 0.1em; color: #e8c9c0; text-shadow: 0 2px 12px #000; font-variant: small-caps; }
 .hud-center p { font-size: 17px; color: #d8cbb8; font-style: italic; }
 .hud-help {
-  position: absolute; right: 24px; top: 24px; padding: 14px 18px; min-width: 280px;
+  position: absolute; right: 24px; top: 48px; padding: 14px 18px; min-width: 280px;
   background: var(--night); border: 1px solid rgba(201, 162, 74, 0.55); border-radius: 6px; font-size: 13px;
   opacity: 0; transform: translateX(10px); transition: opacity 0.25s, transform 0.25s;
 }
@@ -194,6 +194,10 @@ button.primary {
 kbd {
   font-family: var(--serif); font-size: 12px; padding: 1px 6px; border-radius: 3px;
   background: rgba(255, 244, 214, 0.12); border: 1px solid rgba(201, 162, 74, 0.5);
+}
+.hud-clock {
+  position: absolute; right: 24px; top: 20px; font-size: 14px; letter-spacing: 0.04em;
+  color: rgba(244, 236, 216, 0.85); text-shadow: 0 1px 3px #000;
 }
 .hud-hint { position: absolute; left: 28px; top: 20px; font-size: 12px; color: rgba(244, 236, 216, 0.55); text-shadow: 0 1px 2px #000; }
 

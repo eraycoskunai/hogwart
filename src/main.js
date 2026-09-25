@@ -19,8 +19,8 @@ import { Time } from './core/Time.js';
 import { AssetCache } from './core/AssetCache.js';
 import { Debug } from './core/Debug.js';
 import { Renderer } from './render/Renderer.js';
-import { Sky } from './render/Sky.js';
-import { SceneLighting } from './render/SceneLighting.js';
+import { Atmosphere } from './render/Atmosphere.js';
+import { GameClock } from './world/GameClock.js';
 import { ThirdPersonCamera } from './render/ThirdPersonCamera.js';
 import { CinematicCamera } from './render/CinematicCamera.js';
 import { DebugDraw } from './render/DebugDraw.js';
@@ -33,7 +33,6 @@ import { PauseMenu } from './ui/PauseMenu.js';
 import { GalleryPanel } from './ui/GalleryPanel.js';
 import { TextureFactory } from './procgen/textures/TextureFactory.js';
 import { MaterialLibrary } from './render/MaterialLibrary.js';
-import { createSkyEnvironment } from './render/Environment.js';
 import { MaterialGallery } from './world/MaterialGallery.js';
 import { TEXTURE_GEN_VERSION, TEXTURE_CACHE_DB, MAX_TEXTURE_WORKERS } from './data/materials.js';
 
@@ -44,6 +43,7 @@ const AVATAR_MATERIALS = Object.freeze(['robeFabric']);
 const MENU_ORBIT = Object.freeze({ radius: 46, height: 19, speed: 0.045, look: [0, 3, -6] });
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 const _v = new THREE.Vector3();
+const _focus = new THREE.Vector3();
 
 class Game {
   constructor() {
@@ -77,14 +77,6 @@ class Game {
     this.camera = new THREE.PerspectiveCamera(this.settings.get('fov'), this.renderer.aspect, CAMERA.near, preset.drawDistance);
     this.input = new Input(bus, this.canvas, this.settings);
 
-    const env = TEST_ROOM.environment;
-    this.sky = new Sky(env.sky);
-    this.scene.add(this.sky.mesh);
-    this.scene.fog = new THREE.FogExp2(env.fog.color, env.fog.density * preset.fogDensityScale);
-    this.lighting = new SceneLighting(this.scene, bus, env.lighting, preset);
-    this.sky.setSunDirection(this.lighting.sunDir);
-    this.scene.environment = createSkyEnvironment(this.renderer.renderer, env.sky, this.lighting.sunDir);
-
     // Procedural materials: generated in workers, cached in IndexedDB.
     this.textureFactory = new TextureFactory(bus, { version: TEXTURE_GEN_VERSION, dbName: TEXTURE_CACHE_DB, maxWorkers: MAX_TEXTURE_WORKERS });
     this.library = new MaterialLibrary({ bus, renderer: this.renderer.renderer, factory: this.textureFactory, size: preset.textureSize });
@@ -97,6 +89,11 @@ class Game {
     offProgress();
     this.textureLoadMs = performance.now() - t0;
 
+    // Time of day, sky, lighting, weather and post-processing.
+    this.clock = new GameClock(bus);
+    this.atmosphere = new Atmosphere({ renderer: this.renderer, scene: this.scene, camera: this.camera, bus, settings: this.settings, library: this.library, clock: this.clock });
+    this.atmosphere.initFlames(this.library.textures.get('candleFlame').tex.albedo);
+
     this._progress('Fizik dünyası kuruluyor…', 0.75);
     await nextFrame();
     this.physics = new PhysicsWorld(bus);
@@ -104,13 +101,18 @@ class Game {
 
     this._progress('Test salonu inşa ediliyor…', 0.8);
     await nextFrame();
-    this.room = new TestRoom({ scene: this.scene, physics: this.physics, triggers: this.triggers, bus, preset, library: this.library }, TEST_ROOM).build();
+    const atm = this.atmosphere;
+    this.room = new TestRoom({
+      scene: this.scene, physics: this.physics, triggers: this.triggers, bus, preset, library: this.library,
+      lights: atm.lights, flames: atm.flames, grading: atm.grading, sky: atm.sky,
+    }, TEST_ROOM).build();
 
     this._progress('Karakter hazırlanıyor…', 0.88);
     await nextFrame();
     this.player = new Player({ bus, physics: this.physics, settings: this.settings, scene: this.scene, library: this.library });
     this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
     this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
+    this.atmosphere.registerNow();
     this.cameraRig = new ThirdPersonCamera(this.camera, this.physics, this.settings, bus);
     this.cameraRig.snapTo(this.room.spawn.position, this.room.spawn.yaw);
     this.cinematic = new CinematicCamera(this.camera, bus);
@@ -183,6 +185,8 @@ class Game {
           g.hud.setVisible(false);
           g.bootEl.classList.add('gone');
           g.galleryPanel.show();
+          // The roof occluder belongs to the game world, not the gallery studio.
+          g.library.shared.occ.uOccEnabled.value = 0;
           await g.library.load(g.library.keys, 'Galeri dokuları');
           if (!g.fsm.is('gallery')) return;
           g.gallery.open();
@@ -270,8 +274,8 @@ class Game {
     bus.on('render:quality', ({ preset }) => {
       this.camera.far = preset.drawDistance;
       this.camera.updateProjectionMatrix();
-      this.scene.fog.density = TEST_ROOM.environment.fog.density * preset.fogDensityScale;
     });
+    bus.on('weather:changed', ({ label }) => this.hud?.notice(`Hava: ${label}`));
     bus.on('trigger:enter', ({ data }) => {
       if (data.cinematic && this.fsm.is('play')) {
         const shot = this.room.cinematics[data.cinematic];
@@ -315,6 +319,8 @@ class Game {
   serialize() {
     return {
       region: TEST_ROOM.id,
+      clock: this.clock.serialize(),
+      weather: this.atmosphere.weather.serialize(),
       playtime: this.playtime,
       player: this.player.serialize(),
       camera: { yaw: this.cameraRig.yaw, pitch: this.cameraRig.pitch },
@@ -336,6 +342,8 @@ class Game {
     const d = env.data;
     this.playtime = Number(d.playtime) || 0;
     this.player.deserialize(d.player);
+    this.clock.deserialize(d.clock);
+    this.atmosphere.weather.deserialize(d.weather);
     this.cameraRig.snapTo(this.player.position, Number(d.camera?.yaw) || this.player.yaw, Number(d.camera?.pitch) || CAMERA.defaultPitch);
     this.hud.setHealth(this.player.health, this.player.maxHealth);
     this.hud.notice('Kayıt yüklendi');
@@ -367,6 +375,7 @@ class Game {
             Bellek: mem ? `${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'desteklenmiyor',
             Kalite: QUALITY_PRESETS[this.renderer.quality].label,
           },
+          'Zaman ve hava': this.atmosphere.stats,
           Dokular: {
             'Çözünürlük': `${this.library.size} px`,
             'İşçi (worker)': this.textureFactory.stats.workers || 'yok (ana iş parçacığı)',
@@ -420,7 +429,19 @@ class Game {
         hitStop: () => this.time.hitStop(0.25, 0.05),
         shake: () => this.cameraRig.addTrauma(0.8),
         gallery: () => this.fsm.change('gallery'),
-        wetness: () => this.library.setWetness(this.library.shared.uWetness.value > 0.5 ? 0 : 1),
+        setHour: (h) => this.clock.setHour(h),
+        timeSpeed: (v) => {
+          this.clock.speed = v;
+        },
+        weather: (type) => {
+          this.atmosphere.weather.auto = false;
+          this.atmosphere.weather.set(type);
+        },
+        weatherAuto: () => {
+          this.atmosphere.weather.auto = true;
+          this.atmosphere.weather.roll();
+        },
+        strike: () => this.atmosphere.weather.strike(400),
       },
     };
   }
@@ -452,8 +473,12 @@ class Game {
     if (this.fsm.is('gallery')) {
       if (this.gallery.active) this.gallery.render();
     } else {
+      // Game time runs everywhere except in menus.
+      const gameHours = this.fsm.is('pause') ? 0 : this.clock.update(time.dt);
       this.lateUpdate(time.unscaledDt, alpha);
-      this.renderer.render(this.scene, this.camera);
+      this.atmosphere.update(time.unscaledDt, gameHours, _focus.copy(this.player.visualPosition).setY(this.player.visualPosition.y + 1.5));
+      this.hud.setClock(`${this.clock.format()} · ${this.atmosphere.weather.label}`);
+      this.atmosphere.render();
     }
     this.debug.update(time.unscaledDt * 1000, time.unscaledDt);
     this.input.endFrame();
@@ -501,9 +526,7 @@ class Game {
       this.cameraRig.update(dt, player.visualPosition, { crouching: player.controller.crouching, speed: player.speed });
     }
 
-    this.lighting.update(player.visualPosition);
-    this.sky.update(this.camera);
-    this.room.render(this.time.elapsed);
+    this.room.render(this.time.elapsed, this.atmosphere.night);
     this.debugDraw.update(player.controller, player.visualPosition);
 
     let lockScreen = null;

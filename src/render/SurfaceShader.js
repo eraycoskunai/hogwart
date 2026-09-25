@@ -10,6 +10,7 @@
  * and can be changed at runtime (gallery sliders, weather system).
  */
 import * as THREE from 'three';
+import { OCCLUDER_GLSL } from './PrecipitationOccluder.js';
 
 export const SURFACE_DEFAULTS = Object.freeze({
   triplanar: false,
@@ -42,7 +43,9 @@ uniform float uDampHeight;
 uniform float uDampBase;
 uniform float uWetResponse;
 uniform float uWetness;
+uniform float uSnowCover;
 uniform sampler2D uVarTex;
+${OCCLUDER_GLSL}
 varying vec3 vSurfPos;
 varying vec3 vSurfNormal;
 
@@ -92,6 +95,7 @@ const WEATHER = /* glsl */ `
 float surfWetMask = 0.0;
 float surfMossMask = 0.0;
 float surfDampMask = 0.0;
+float surfSnowMask = 0.0;
 {
   vec3 sn = normalize(vSurfNormal);
   vec2 vuv = abs(sn.y) > 0.6 ? vSurfPos.xz : vec2(vSurfPos.x + vSurfPos.z, vSurfPos.y);
@@ -112,15 +116,19 @@ float surfDampMask = 0.0;
   diffuseColor.rgb = mix(diffuseColor.rgb, uMossColor * (0.7 + varB.r * 0.6), surfMossMask);
   surfDampMask = (1.0 - smoothstep(0.0, uDampHeight * (0.6 + varB.g * 0.8), vSurfPos.y - uDampBase)) * uDamp * (1.0 - up);
   diffuseColor.rgb *= 1.0 - surfDampMask * 0.38;
-  surfWetMask = clamp(uWetness * uWetResponse * (0.55 + 0.45 * up + cav * 0.5), 0.0, 1.0);
+  // Roofs keep interiors dry and snow-free (top-down occluder map).
+  float shelter = occSheltered(vSurfPos);
+  surfSnowMask = smoothstep(0.45, 0.85, sn.y) * uSnowCover * (1.0 - shelter) * clamp(0.75 + varB.r * 0.5 - cav * 0.3, 0.0, 1.0);
+  surfWetMask = clamp(uWetness * uWetResponse * (0.55 + 0.45 * up + cav * 0.5), 0.0, 1.0) * (1.0 - shelter) * (1.0 - surfSnowMask);
   diffuseColor.rgb *= 1.0 - surfWetMask * 0.32;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.9, 0.95), surfSnowMask);
 }
 `;
 
 /**
  * @param {THREE.MeshStandardMaterial} material
  * @param {Partial<typeof SURFACE_DEFAULTS>} opts
- * @param {{uWetness:{value:number}, uVarTex:{value:THREE.Texture}}} shared
+ * @param {{uWetness:{value:number}, uSnowCover:{value:number}, uVarTex:{value:THREE.Texture}, occ:Record<string, {value:any}>}} shared
  */
 export function applySurfaceShader(material, opts, shared) {
   const o = { ...SURFACE_DEFAULTS, ...opts };
@@ -136,7 +144,9 @@ export function applySurfaceShader(material, opts, shared) {
     uDampBase: { value: o.dampBase },
     uWetResponse: { value: o.wet },
     uWetness: shared.uWetness,
+    uSnowCover: shared.uSnowCover,
     uVarTex: shared.uVarTex,
+    ...shared.occ,
   };
   material.userData.surface = uniforms;
   material.userData.triplanar = o.triplanar;
@@ -174,7 +184,8 @@ export function applySurfaceShader(material, opts, shared) {
           `
           roughnessFactor = mix(roughnessFactor, 0.95, surfMossMask);
           roughnessFactor *= 1.0 - surfDampMask * 0.25;
-          roughnessFactor = mix(roughnessFactor, 0.06, surfWetMask * 0.85);`,
+          roughnessFactor = mix(roughnessFactor, 0.06, surfWetMask * 0.85);
+          roughnessFactor = mix(roughnessFactor, 0.8, surfSnowMask);`,
       )
       .replace('#include <metalnessmap_fragment>', C.metalnessmap_fragment.replace('texture2D( metalnessMap, vMetalnessMapUv )', 'surfSample( metalnessMap, vMetalnessMapUv )'))
       .replace('#include <aomap_fragment>', C.aomap_fragment.replace('texture2D( aoMap, vAoMapUv )', 'surfSample( aoMap, vAoMapUv )'))

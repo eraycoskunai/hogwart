@@ -13,6 +13,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   showSubtitles: true,
   difficulty: 'normal',
   volume: { master: 0.8, music: 0.7, sfx: 0.9, ambience: 0.7, voice: 0.9 },
+  /** Post-processing opt-outs (only effective when the quality preset enables them). */
+  fx: { bloom: true, ao: true, godRays: true, dust: true },
   /** Per-action overrides of keyboard bindings, e.g. { jump: ['Space', null] } */
   keyBindings: {},
 });

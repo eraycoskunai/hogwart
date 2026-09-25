@@ -10,27 +10,62 @@ import { Sky } from './Sky.js';
 export const ENV = Object.freeze({
   sigma: 0.04,
   skyRadius: 100,
-  groundColor: 0x3d3730,
 });
 
 /**
- * Environment from the sky gradient plus a dark ground hemisphere.
- * @param {THREE.WebGLRenderer} renderer
- * @param {{top:number, horizon:number, bottom:number, sunColor:number}} skyColors
- * @param {THREE.Vector3} sunDir
- * @returns {THREE.Texture}
+ * Image-based lighting that follows the live sky: a private dome sharing the
+ * sky uniforms is re-captured into a PMREM map every few seconds (or when
+ * forced after big changes such as weather transitions or time skips).
  */
-export function createSkyEnvironment(renderer, skyColors, sunDir) {
-  const scene = new THREE.Scene();
-  const sky = new Sky({ ...skyColors, bottom: ENV.groundColor });
-  sky.setSunDirection(sunDir);
-  sky.mesh.scale.setScalar(ENV.skyRadius);
-  scene.add(sky.mesh);
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const target = pmrem.fromScene(scene, ENV.sigma, 0.1, ENV.skyRadius * 2);
-  pmrem.dispose();
-  sky.dispose();
-  return target.texture;
+export class SkyEnvironment {
+  /**
+   * @param {THREE.WebGLRenderer} renderer
+   * @param {ReturnType<import('./SkyShader.js').createSkyUniforms>} skyUniforms
+   * @param {number} interval real seconds between captures
+   */
+  constructor(renderer, skyUniforms, interval) {
+    this.renderer = renderer;
+    this.interval = interval;
+    this.scene = new THREE.Scene();
+    this.sky = new Sky(skyUniforms);
+    this.sky.mesh.scale.setScalar(ENV.skyRadius);
+    this.scene.add(this.sky.mesh);
+    this.pmrem = new THREE.PMREMGenerator(renderer);
+    this.target = null;
+    this.timer = 0;
+    this.capture();
+  }
+
+  /** @returns {THREE.Texture} */
+  get texture() {
+    return this.target.texture;
+  }
+
+  capture() {
+    const old = this.target;
+    this.target = this.pmrem.fromScene(this.scene, ENV.sigma, 0.1, ENV.skyRadius * 2);
+    old?.dispose();
+    this.timer = this.interval;
+    return this.target.texture;
+  }
+
+  /**
+   * @param {number} dt real seconds
+   * @returns {boolean} true when a new texture was produced
+   */
+  update(dt) {
+    this.timer -= dt;
+    if (this.timer > 0) return false;
+    this.capture();
+    return true;
+  }
+
+  dispose() {
+    this.target?.dispose();
+    this.pmrem.dispose();
+    this.sky.mesh.geometry.dispose();
+    this.sky.mesh.material.dispose();
+  }
 }
 
 /**

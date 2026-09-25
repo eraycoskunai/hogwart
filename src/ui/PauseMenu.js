@@ -13,6 +13,13 @@ const TABS = [
   ['audio', 'Ses'],
 ];
 
+const FX_LABELS = [
+  ['bloom', 'Parlama (bloom)'],
+  ['ao', 'Ortam kapatma (GTAO)'],
+  ['godRays', 'Işık huzmeleri'],
+  ['dust', 'Havada toz'],
+];
+
 const VOLUME_LABELS = { master: 'Ana ses', music: 'Müzik', sfx: 'Efektler', ambience: 'Ortam', voice: 'Konuşma' };
 
 function fmtDate(ts) {
@@ -89,7 +96,9 @@ export class PauseMenu {
       <label class="row">Kalite <select data-setting="quality">${q}</select></label>
       <label class="row">Çözünürlük ölçeği <select data-setting="renderScale" data-type="number">${rs}</select></label>
       <label class="row">Görüş alanı (FOV) <span><input type="range" data-setting="fov" data-type="number" min="${f.min}" max="${f.max}" step="${f.step}" value="${s.fov}"><output>${s.fov}°</output></span></label>
-      <p class="note">Kenar yumuşatma (MSAA) değişikliği sayfa yeniden yüklenince uygulanır.</p>`;
+      <h3>Efektler <small>(kalite ayarı izin veriyorsa)</small></h3>
+      ${FX_LABELS.map(([k, label]) => `<label class="row">${label} <input type="checkbox" data-fx="${k}" ${s.fx?.[k] !== false ? 'checked' : ''}></label>`).join('')}
+      <p class="note">Doku çözünürlüğü ve parçacık sayıları sayfa yeniden yüklenince uygulanır.</p>`;
   }
 
   _controls() {
@@ -164,6 +173,11 @@ export class PauseMenu {
       settings.set('volume', vol);
       const out = el.parentElement.querySelector('output');
       if (out) out.textContent = `${Math.round(Number(el.value) * 100)}%`;
+      return;
+    }
+    if (el.dataset.fx) {
+      if (e.type !== 'change') return;
+      settings.set('fx', { ...settings.get('fx'), [el.dataset.fx]: el.checked });
       return;
     }
     const key = el.dataset.setting;

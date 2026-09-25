@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 2 — Prosedürel doku sistemi ve malzemeler** (Faz 1 motor iskeleti tamam)
+> **Durum: Faz 3 — Işık, gökyüzü, gün-gece, hava durumu, post-fx** (Faz 1–2 tamam)
 
 ## Çalıştırma
 
@@ -52,7 +52,9 @@ Tuşlar menüdeki **Kontroller** sekmesinden yeniden atanabilir (localStorage'a 
 | Sütun ormanı + dar koridor | Kamera çarpışması (kamera duvara girmez) |
 | Atlama parkuru (1.5–4 m) | Coyote time, zıplama tamponu, depar ile uzun atlama |
 | Antrenman mankenleri | Hedefe kilitlenme, yapay zekâ durum makinesi (boşta → uyanık → hedeflenmiş) |
-| Parlayan rün dairesi | Spline sinematik kamera turu (Boşluk/Esc ile atla) |
+| Parlayan rün dairesi | Spline sinematik kamera turu (Boşluk/Esc ile atla), alan derinliği |
+| Büyük Salon | Büyülü tavan (gerçek gökyüzü), yüzen mumlar, sıcak altın renk düzeltmesi |
+| Zindan | Titreyen meşaleler, yeşil renk düzeltmesi, iç mekân ortam ışığı |
 
 Her alanın girişinde bilgi tetikleyicisi, oyuncuya neyin test edildiğini gösterir.
 
@@ -76,11 +78,36 @@ Her alanın girişinde bilgi tetikleyicisi, oyuncuya neyin test edildiğini gös
 
 Doku çözünürlüğü kalite ayarına bağlıdır (Düşük 512, Orta/Yüksek 1024, Ultra 2048); değişiklik sayfa yenilenince uygulanır.
 
+## Işık, gökyüzü ve hava (Faz 3)
+
+- **Oyun saati** (`src/world/GameClock.js`): 1 oyun günü = 24 gerçek dakika; okul yılı 1 Eylül 1991'de başlar,
+  mevsimler Eylül → Haziran ilerler. Güneş ve ay İskoçya enleminde (56.8°) astronomik olarak hesaplanır; ayın evreleri vardır.
+  Saat HUD'un sağ üstünde görünür, kayıt dosyasına yazılır.
+- **Gökyüzü** (`SkyShader.js`, `Sky.js`): Preetham atmosfer saçılımı, gün batımı renkleri, dönen yıldızlar, evreli ay,
+  fBm bulutlar (hava durumuna göre yoğunluk), şimşek aydınlatması. Ortam yansıması (PMREM) gökyüzünden periyodik yakalanır.
+- **Işık** (`SceneLighting.js`): güneş/ay geçişli yönlü ışık, kademeli yumuşak gölgeler (CSM, kaliteye göre 1–4 kademe),
+  güneş yüksekliğine göre anahtar kareli renk/şiddet, yarımküre ortam ışığı, sis rengi.
+- **Nokta ışık havuzu** (`LightManager.js`): sahnede yüzlerce meşale/mum/lamba kaynağı olabilir; yalnızca kameraya en yakın N
+  tanesi (kaliteye göre) gerçek ışık alır, geçişler yumuşak solar. Titreme profilleri: mum, meşale, lamba.
+  Alevler tek çizimde örneklenmiş billboard'dur (`FlameSprites.js`).
+- **Hava durumu** (`Weather.js`, `WeatherParticles.js`): açık, bulutlu, kapalı, yağmur, fırtına, sis, kar. Mevsime göre rastgele
+  değişir, geçişler ~25 sn sürer. Yağmur damlaları + zeminde sıçramalar + ıslak yüzeyler; kar kışın yukarı bakan yüzeylerde
+  birikir; fırtınada şimşek ve mesafeye göre gecikmeli gök gürültüsü olayı (`weather:thunder`, ses Faz 11'de).
+  Tepeden derinlik haritası (`PrecipitationOccluder.js`) sayesinde çatı altına yağmur/kar düşmez, iç mekânlar kuru kalır.
+- **Post-fx** (`PostFX.js`): GTAO (ortam kapatma), güneş ışınları, bloom, ACES ton eşleme, bölgeye göre renk düzeltme
+  (`ColorGrading.js`: dış mekân, gece, kapalı hava, Büyük Salon altın, zindan yeşil, orman mavi-yeşil) + vinyet, FXAA,
+  yalnızca sinematiklerde alan derinliği. Güneşli iç mekânlarda toz zerrecikleri (`DustMotes.js`).
+- **Kalite ön ayarları**: Düşük / Orta / Yüksek / Ultra — gölge kademeleri ve çözünürlüğü, nokta ışık sayısı, MSAA, efektler,
+  parçacık sayıları. Menü → Grafik sekmesinden bloom, AO, güneş ışınları ve toz tek tek kapatılabilir.
+  Parçacık sayıları ve doku çözünürlüğü sayfa yenilenince uygulanır.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
 oyuncu durumu (zemin açısı, hız, kilit), yapay zekâ ve platform durumları, çarpışma şekilleri görünümü,
 noclip, ölümsüzlük, zaman ölçeği, ışınlanma menüsü, sinematik/hasar/hit-stop/sarsıntı testleri.
+**Zaman ve hava** bölümü: saat kaydırıcısı, zaman hızı (×1 / ×10 / ×60 / ×300), hava durumu düğmeleri,
+otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 
 ## Mimari
 
@@ -89,14 +116,15 @@ index.html            import map + arayüz kökleri
 src/main.js           başlatma, oyun durum makinesi, sabit adımlı döngü (1/60 fizik, değişken render + interpolasyon)
 src/core/             EventBus, StateMachine, Input (klavye/fare/gamepad + tuş atama), Time (hit-stop),
                       SaveSystem (3 yuva + otomatik, sürümlü), Settings, AssetCache (referans sayımı), Debug (F3)
-src/render/           Renderer (kalite ön ayarları), Sky, SceneLighting (gölge takibi), ThirdPersonCamera,
-                      CinematicCamera (Catmull-Rom spline), DebugDraw
+src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sky/SkyShader, Environment, SceneLighting (CSM),
+                      LightManager, FlameSprites, Weather + WeatherParticles + PrecipitationOccluder, PostFX,
+                      ColorGrading, DustMotes, SurfaceShader, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
 src/physics/          Geometry (kapsül/üçgen/ışın testleri), Collider, CollisionWorld (3B uzamsal hash + DDA ışın),
                       PhysicsWorld (cannon-es rijit cisimler + kinematik platformlar), CharacterController, TriggerSystem
 src/gameplay/         Player (can, düşme hasarı, yeniden doğma), TargetDummy
 src/animation/        ProceduralAnimator (adım, kol salınımı, eğilme, çömelme, iniş sıkışması, nişan pozu)
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme), Mannequin
-src/world/            TestRoom, Movers (yol ve adımlı dönüş hareketleri)
+src/world/            GameClock, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery
 src/ui/               HUD, PauseMenu, styles.css
 src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, test salonu yerleşimi
 ```
@@ -108,7 +136,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 
 1. ✅ Motor iskeleti, girdi, kamera, kapsül kontrolcü, fizik, debug paneli, test odası
 2. ✅ Prosedürel doku sistemi ve tüm malzemeler (Worker + önbellek), malzeme galerisi
-3. Işık, gökyüzü, gün-gece, hava durumu, post-fx, kalite ayarları
+3. ✅ Işık, gökyüzü, gün-gece, hava durumu, post-fx, kalite ayarları
 4. Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma
 5. Şato modül kiti, Hogwarts dış mekânı, arazi, göl, orman
 6. İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming

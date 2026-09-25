@@ -9,23 +9,6 @@ export const TEST_ROOM = {
   name: 'Motor Test Salonu',
   spawn: { position: [0, 0, 14], yaw: 0 },
 
-  environment: {
-    sky: { top: 0x2d5a8c, horizon: 0xc9d6de, bottom: 0x4a4540, sunColor: 0xfff1d6 },
-    fog: { color: 0xb9c6cf, density: 0.0065 },
-    lighting: {
-      sky: 0xcfe0ff,
-      ground: 0x5d5044,
-      hemiIntensity: 0.35,
-      sunColor: 0xfff0d8,
-      sunIntensity: 2.6,
-      sunDirection: [0.45, 0.8, 0.35],
-      shadowExtent: 34,
-      shadowDistance: 70,
-      shadowBias: -0.0004,
-      shadowNormalBias: 0.03,
-    },
-  },
-
   /**
    * Surface materials: catalogue key (data/materials.js) + world tile size.
    * Names are referenced by the layout below.
@@ -51,7 +34,68 @@ export const TEST_ROOM = {
     burlap: { key: 'robeFabric:burlap' },
     rod: { key: 'brass', tile: 1 },
     water: { key: 'water', tile: 5 },
+    dungeonWall: { key: 'hogwartsStone', tile: 2.5, surface: { moss: 0.85, damp: 1, dampHeight: 1.6, dirt: 0.7, variation: 0.7 } },
+    dungeonFloor: { key: 'cobblestone', tile: 2.5, surface: { moss: 0.3, dirt: 0.6 } },
   },
+
+  /** Enclosed demo rooms (Phase 3: interior lighting, grading, enchanted ceiling). */
+  rooms: [
+    {
+      id: 'greatHall',
+      name: 'Büyük Salon (örnek)',
+      grade: 'greatHall',
+      /** Interior fill light standing in for bounced candle light (light probe). */
+      ambient: { sky: 0xffcf96, ground: 0x4a2c16, intensity: 0.75 },
+      pos: [35, 0, 39.5],
+      size: [21, 8, 15],
+      wall: 0.6,
+      wallMat: 'wall',
+      door: { side: 'west', width: 3.4, height: 4.4 },
+      ceiling: 'enchanted',
+      carpet: { key: 'carpet', size: [2.6, 18], tile: 2.6 },
+      tables: [
+        { pos: [0, -3.2], length: 15, mat: 'wood' },
+        { pos: [0, 3.2], length: 15, mat: 'wood' },
+      ],
+      tapestries: [
+        { key: 'tapestry:lion', wall: 'north', x: -5, y: 4.6, size: [2.2, 2.8] },
+        { key: 'tapestry:badger', wall: 'north', x: 5, y: 4.6, size: [2.2, 2.8] },
+        { key: 'tapestry:eagle', wall: 'south', x: -5, y: 4.6, size: [2.2, 2.8] },
+        { key: 'tapestry:snake', wall: 'south', x: 5, y: 4.6, size: [2.2, 2.8] },
+      ],
+      candles: { count: 90, height: [4.4, 6.4] },
+      lights: [
+        { pos: [-6, 5.2, -3], color: 0xffc27a, intensity: 12, distance: 16, flicker: 'candle' },
+        { pos: [0, 5.2, -3], color: 0xffc27a, intensity: 12, distance: 16, flicker: 'candle' },
+        { pos: [6, 5.2, -3], color: 0xffc27a, intensity: 12, distance: 16, flicker: 'candle' },
+        { pos: [-6, 5.2, 3], color: 0xffc27a, intensity: 12, distance: 16, flicker: 'candle' },
+        { pos: [0, 5.2, 3], color: 0xffc27a, intensity: 12, distance: 16, flicker: 'candle' },
+        { pos: [6, 5.2, 3], color: 0xffc27a, intensity: 12, distance: 16, flicker: 'candle' },
+      ],
+    },
+    {
+      id: 'dungeon',
+      name: 'Zindan (örnek)',
+      grade: 'dungeon',
+      ambient: { sky: 0x5a7a5e, ground: 0x1a1c14, intensity: 0.5 },
+      pos: [-13, 0, -43.4],
+      size: [12, 3.8, 8.6],
+      wall: 0.6,
+      wallMat: 'dungeonWall',
+      floorMat: 'dungeonFloor',
+      door: { side: 'south', width: 2.2, height: 2.6 },
+      // Torches: [x, z, face] in room space; face +1 = on the west wall facing east.
+      torches: [[-5.35, -2, 1], [-5.35, 2.2, 1], [5.35, -2, -1], [5.35, 2.2, -1]],
+      torchColor: 0xff8a3a,
+      torchIntensity: 9,
+      torchDistance: 10,
+    },
+  ],
+
+  /** Outdoor grading zones. */
+  gradeZones: [
+    { name: 'Orman kenarı (örnek)', grade: 'forest', min: [-47, -1, 19], max: [-29, 12, 40], indoor: false },
+  ],
 
   /** Decorative set dressing that showcases materials. */
   decorations: {
@@ -210,6 +254,8 @@ export const TEST_ROOM = {
     { id: 'info:bridge', pos: [30, 1.5, -17.5], size: [4, 3, 2], message: 'Dönen köprü — hareketli merdivenlerin prototipi; üzerindeyken seni taşır ve döndürür.' },
     { id: 'info:slider', pos: [-40, 1.5, -24.5], size: [4, 3, 2], message: 'Kayan platform — seni taşır; üzerinden zıplarken platformun hızını korursun.' },
     { id: 'info:camera', pos: [-35, 1.5, 20], size: [14, 3, 2], message: 'Kamera testi — sütunlar ve dar koridor: kamera duvara girmez, X ile omuz değiştir.' },
+    { id: 'info:greatHall', pos: [22.5, 1.5, 39.5], size: [2, 3, 5], message: 'Büyük Salon örneği — büyülü tavan dışarıdaki gökyüzünü gösterir; süzülen mumlar, sıcak altın renk tonu.' },
+    { id: 'info:dungeon', pos: [-13, 1.5, -37.6], size: [4, 3, 2], message: 'Zindan örneği — titreyen meşaleler, soğuk yeşil renk tonu, yosunlu nemli taşlar.' },
     { id: 'cinematic:tour', pos: [8, 0.6, 8], size: [2.4, 1.2, 2.4], cinematic: 'tour', message: 'Sinematik kamera turu (Boşluk/Esc ile atla)' },
   ],
 
@@ -226,6 +272,8 @@ export const TEST_ROOM = {
     { name: 'Sütunlar', pos: [-35, 0, 19], yaw: 0 },
     { name: 'Atlama parkuru', pos: [-12, 1.25, 42], yaw: -Math.PI / 2 },
     { name: 'Hedefler', pos: [0, 0, -9], yaw: 0 },
+    { name: 'Büyük Salon', pos: [27.5, 0, 39.5], yaw: -Math.PI / 2 },
+    { name: 'Zindan', pos: [-13, 0.05, -40.5], yaw: 0 },
   ],
 
   cinematics: {

@@ -3,6 +3,7 @@
  * memory, physics statistics, player state, AI states, toggles (collision
  * shapes, noclip, god mode), time scale and a teleport menu.
  */
+import { WEATHER_TYPES } from '../data/atmosphere.js';
 
 export const DEBUG_UI = Object.freeze({
   textRefresh: 0.2,
@@ -49,8 +50,16 @@ export class Debug {
           <button data-dbg-act="resetProps">Nesneleri sıfırla</button>
           <button data-dbg-act="hitStop">Hit-stop</button>
           <button data-dbg-act="shake">Sarsıntı</button>
-          <button data-dbg-act="wetness">Islak / kuru</button>
           <button data-dbg-act="gallery">Malzeme galerisi</button>
+        </div>
+      </div>
+      <div class="dbg-section"><h4>Zaman ve hava</h4>
+        <label class="dbg-row">Saat <input type="range" min="0" max="23.99" step="0.05" value="9.5" data-dbg="hour"><output>09:30</output></label>
+        <div class="dbg-buttons">
+          <span>Hız:</span>${[1, 10, 60, 300].map((v) => `<button data-dbg-speed="${v}">x${v}</button>`).join('')}
+        </div>
+        <div class="dbg-buttons">${Object.entries(WEATHER_TYPES).map(([k, w]) => `<button data-dbg-weather="${k}">${w.label}</button>`).join('')}
+          <button data-dbg-act="weatherAuto">Otomatik</button><button data-dbg-act="strike">Şimşek</button>
         </div>
       </div>
       <div class="dbg-section"><h4>Işınlan</h4><div class="dbg-teleports"></div></div>
@@ -68,13 +77,19 @@ export class Debug {
       const b = /** @type {HTMLElement} */ (e.target).closest('button');
       if (!b) return;
       if (b.dataset.dbgTp != null) this.p.actions.teleport(Number(b.dataset.dbgTp));
+      else if (b.dataset.dbgSpeed) this.p.actions.timeSpeed(Number(b.dataset.dbgSpeed));
+      else if (b.dataset.dbgWeather) this.p.actions.weather(b.dataset.dbgWeather);
       else if (b.dataset.dbgAct) this.p.actions[b.dataset.dbgAct]?.();
       else if (b.dataset.dbgToggle) this.p.actions.toggle(b.dataset.dbgToggle);
       this._renderToggles();
     });
     root.addEventListener('input', (e) => {
       const el = /** @type {HTMLInputElement} */ (e.target);
-      if (el.dataset.dbg === 'timeScale') {
+      if (el.dataset.dbg === 'hour') {
+        const h = Number(el.value);
+        this.p.actions.setHour(h);
+        el.nextElementSibling.textContent = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
+      } else if (el.dataset.dbg === 'timeScale') {
         this.p.actions.timeScale(Number(el.value));
         el.nextElementSibling.textContent = Number(el.value).toFixed(2);
       }

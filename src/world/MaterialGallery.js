@@ -100,7 +100,7 @@ export class MaterialGallery {
 
     const lib = this.o.library;
     const groups = MaterialGallery.groups();
-    const floorMat = lib.get('flagstone', { tile: 4 });
+    const floorMat = lib.get('flagstone', { tile: 4, _scope: 'gallery' });
     this._borrowed = [floorMat];
     const floorSize = 120;
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(floorSize, floorSize), floorMat);
@@ -173,7 +173,8 @@ export class MaterialGallery {
     const d = MATERIALS[key];
     const { id } = parseMaterialKey(key);
     const cat = GENERATORS[id]?.category;
-    const mat = lib.get(key);
+    // Separate instances from the game world (different lighting setup).
+    const mat = lib.get(key, { _scope: 'gallery' });
     this._borrowed.push(mat);
     let geo;
     let obj;
@@ -290,6 +291,7 @@ export class MaterialGallery {
   }
 
   render() {
+    this.o.renderer.renderer.toneMappingExposure = 1;
     this.o.renderer.render(this.scene, this.camera);
   }
 

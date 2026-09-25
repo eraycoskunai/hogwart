@@ -12,6 +12,7 @@ import { MATERIALS, VARIATION_TEXTURE_SIZE } from '../data/materials.js';
 import { Noise } from '../procgen/textures/noise.js';
 import { applySurfaceShader } from './SurfaceShader.js';
 import { createWaterMaterial, createGlowMaterial, createGhostMaterial } from './EffectMaterials.js';
+import { createOccluderUniforms } from './PrecipitationOccluder.js';
 
 const EFFECT_TYPES = new Set(['water', 'flame', 'trail', 'ink', 'ghost']);
 const MAX_ANISOTROPY = 8;
@@ -59,7 +60,10 @@ export class MaterialLibrary {
     this.shared = {
       uTime: { value: 0 },
       uWetness: { value: 0 },
+      uSnowCover: { value: 0 },
       uVarTex: { value: createVariationTexture(VARIATION_TEXTURE_SIZE) },
+      /** Roof occluder (filled in by the weather system). */
+      occ: createOccluderUniforms(),
     };
     /** @type {Map<string, {tex:Record<string, THREE.DataTexture>, refs:number, size:number, set:object}>} */
     this.textures = new Map();

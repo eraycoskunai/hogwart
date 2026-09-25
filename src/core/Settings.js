@@ -23,7 +23,7 @@ export class Settings {
     if (stored && typeof stored === 'object') {
       for (const k of Object.keys(DEFAULT_SETTINGS)) {
         if (k in stored && typeof stored[k] === typeof DEFAULT_SETTINGS[k]) {
-          this.values[k] = k === 'volume' ? { ...DEFAULT_SETTINGS.volume, ...stored[k] } : stored[k];
+          this.values[k] = k === 'volume' || k === 'fx' ? { ...DEFAULT_SETTINGS[k], ...stored[k] } : stored[k];
         }
       }
     }

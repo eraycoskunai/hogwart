@@ -11,13 +11,16 @@ import { labelTexture, runeCircleTexture } from '../procgen/textures/DevTextures
 import { PathMover, RotateMover } from './Movers.js';
 import { TargetDummy } from '../gameplay/TargetDummy.js';
 import { disposeObject3D } from '../core/AssetCache.js';
+import { buildRoom } from './RoomBuilder.js';
 
 const DEG = Math.PI / 180;
 const Y = new THREE.Vector3(0, 1, 0);
 const X = new THREE.Vector3(1, 0, 0);
 const ONE = new THREE.Vector3(1, 1, 1);
 
-const LAMP = Object.freeze({ postHeight: 3.1, intensity: 14, distance: 16, decay: 2 });
+const LAMP = Object.freeze({ postHeight: 3.1, intensity: 14, distance: 16 });
+/** Night factor above which street lamps are lit. */
+const LAMP_ON_NIGHT = 0.3;
 const LABEL = Object.freeze({ floorWidth: 2.4, floorHeight: 0.6, wallWidth: 1.8, wallHeight: 0.45 });
 
 export class TestRoom {
@@ -50,6 +53,11 @@ export class TestRoom {
     this.dynamicBodies = [];
     this.dummies = [];
     this.lamps = [];
+    /** Materials created (and disposed) by this room. */
+    this.ownedMaterials = [];
+    /** Light sources registered with the LightManager. */
+    this.lightSources = [];
+    this.rooms = [];
     this.triggerZones = [];
     this.animated = [];
 
@@ -58,8 +66,6 @@ export class TestRoom {
     this.teleports = data.teleports.map((t) => ({ name: t.name, position: new THREE.Vector3().fromArray(t.pos), yaw: t.yaw }));
     this.cinematics = data.cinematics;
 
-    this._onQuality = ({ preset }) => this._applyLampBudget(preset.maxDynamicLights);
-    ctx.bus.on('render:quality', this._onQuality);
   }
 
   /**
@@ -69,6 +75,11 @@ export class TestRoom {
   static materialKeys(data) {
     const keys = new Set(Object.values(data.materials).map((m) => m.key));
     for (const t of data.decorations.tapestries) keys.add(t.key);
+    for (const r of data.rooms) {
+      for (const t of r.tapestries ?? []) keys.add(t.key);
+      if (r.carpet) keys.add(r.carpet.key);
+    }
+    keys.add('candleFlame');
     return [...keys];
   }
 
@@ -92,9 +103,11 @@ export class TestRoom {
     this._buildLamps();
     this._buildTriggers();
     this._buildDecorations();
+    for (const r of this.data.rooms) this.rooms.push(buildRoom(this, r));
+    for (const z of this.data.gradeZones) this.ctx.grading?.addZone(z);
 
     for (const mesh of this.batcher.build()) this.root.add(mesh);
-    this._applyLampBudget(this.ctx.preset.maxDynamicLights);
+    for (const r of this.rooms) this.lightSources.push(...r.sources);
     return this;
   }
 
@@ -144,6 +157,11 @@ export class TestRoom {
    * @param {string} matKey
    * @param {string} [surface]
    */
+  /** Public alias used by RoomBuilder. */
+  staticBox(matrix, size, matKey) {
+    this._staticBox(matrix, size, matKey);
+  }
+
   _staticBox(matrix, size, matKey, surface = 'stone') {
     this.colliders.push(this.ctx.physics.addStaticBox(size, matrix, { surface, name: matKey }));
     const geo = new THREE.BoxGeometry(size.x, size.y, size.z);
@@ -339,21 +357,19 @@ export class TestRoom {
       cap.position.y = LAMP.postHeight + 0.44;
       for (const m of [post, base, cap]) m.castShadow = m.receiveShadow = true;
       g.add(post, base, glass, cap);
-      const light = new THREE.PointLight(l.color, LAMP.intensity, LAMP.distance, LAMP.decay);
-      light.position.y = LAMP.postHeight + 0.17;
-      g.add(light);
       this.root.add(g);
-      this.lamps.push({ group: g, light, glass, phase: Math.random() * 10 });
+      const src = this.ctx.lights.add({
+        position: [l.pos[0], LAMP.postHeight + 0.17, l.pos[2]],
+        color: l.color,
+        intensity: LAMP.intensity,
+        distance: LAMP.distance,
+        flicker: 'lamp',
+      });
+      this.lightSources.push(src);
+      this.lamps.push({ group: g, glass, source: src });
       const m = new THREE.Matrix4().makeTranslation(l.pos[0], LAMP.postHeight / 2, l.pos[2]);
       this.colliders.push(this.ctx.physics.addStaticCylinder(0.12, LAMP.postHeight, m, { surface: 'metal', name: 'lamba', cameraBlocking: false }));
     }
-  }
-
-  /** @param {number} max */
-  _applyLampBudget(max) {
-    this.lamps.forEach((l, i) => {
-      l.light.visible = i < max;
-    });
   }
 
   _buildTriggers() {
@@ -465,14 +481,19 @@ export class TestRoom {
   }
 
   /** @param {number} time */
-  render(time) {
+  /**
+   * @param {number} time
+   * @param {number} [night] 0 day … 1 night (street lamps switch on at dusk)
+   */
+  render(time, night = 0) {
     for (const d of this.dummies) d.render(time);
     for (const fn of this.animated) fn(time);
-    for (const l of this.lamps) {
-      // Gentle flame-like flicker.
-      const f = 1 + Math.sin(time * 7.3 + l.phase) * 0.04 + Math.sin(time * 13.1 + l.phase * 2) * 0.03;
-      l.light.intensity = LAMP.intensity * f;
-    }
+    for (const r of this.rooms) r.update(time);
+    // Street lamps switch on at dusk; the glass glows with the flame's flicker.
+    const lampsOn = night > LAMP_ON_NIGHT;
+    for (const l of this.lamps) l.source.enabled = lampsOn;
+    const lead = this.lamps[0]?.source;
+    this.materials.lampGlass.emissiveIntensity = lampsOn && lead ? 2.4 * lead.level : 0.25;
   }
 
   /** Entities exposed to the debug panel. */
@@ -484,7 +505,8 @@ export class TestRoom {
   }
 
   dispose() {
-    this.ctx.bus.off('render:quality', this._onQuality);
+    for (const src of this.lightSources) this.ctx.lights.remove(src);
+    for (const m of this.ownedMaterials) m.dispose();
     for (const d of this.dummies) d.dispose();
     for (const c of this.colliders) this.ctx.physics.removeCollider(c);
     for (const d of this.dynamicBodies) this.ctx.physics.removeDynamic(d);

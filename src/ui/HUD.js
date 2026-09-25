@@ -43,6 +43,7 @@ export class HUD {
       <div class="hud-prompt"></div>
       <div class="hud-center"><h2></h2><p></p></div>
       <div class="hud-help"></div>
+      <div class="hud-clock"></div>
       <div class="hud-hint">H: kontroller · F3: hata ayıklama · Esc: menü</div>
       <div class="hud-fade"></div>`;
     const q = (s) => /** @type {HTMLElement} */ (root.querySelector(s));
@@ -64,6 +65,7 @@ export class HUD {
       centerTitle: q('.hud-center h2'),
       centerText: q('.hud-center p'),
       help: q('.hud-help'),
+      clock: q('.hud-clock'),
       fade: q('.hud-fade'),
     };
 
@@ -137,6 +139,14 @@ export class HUD {
     this.el.notice.textContent = text;
     this.el.notice.classList.add('show');
     this._noticeTimer = HUD_TIMING.noticeDuration;
+  }
+
+  /** Date · time · weather line (top right). @param {string} text */
+  setClock(text) {
+    if (text !== this._clockText) {
+      this._clockText = text;
+      this.el.clock.textContent = text;
+    }
   }
 
   /** @param {string} text empty hides */
