@@ -236,6 +236,8 @@ export const TEST_ROOM = {
     { pos: [-2.5, 0, -17], yaw: 0.1 },
     { pos: [2.5, 0, -17], yaw: -0.1 },
     { pos: [7, 0, -14], yaw: -0.35 },
+    /** Duelling dummy: throws practice bolts (parry them with Protego). */
+    { pos: [0, 0, -21], yaw: 0, caster: true },
   ],
 
   lamps: [
@@ -252,7 +254,7 @@ export const TEST_ROOM = {
     { id: 'info:props', pos: [-10, 1.5, 17], size: [18, 3, 2], message: 'Fizik — sandıkları ve topları it, piramidi yık; ağır sandıklar yavaş kayar, en büyüğü zar zor kıpırdar.' },
     { id: 'info:tunnel', pos: [40, 1, 18.5], size: [3, 2, 1.5], message: 'Alçak tünel — C ile çömel. Tavanın altındayken ayağa kalkamazsın.' },
     { id: 'info:jumps', pos: [-12, 1.5, 37], size: [4, 3, 2], message: 'Atlama parkuru — coyote time ve zıplama tamponu. 4 m boşluk için Shift ile depar at.' },
-    { id: 'info:dummies', pos: [0, 1.5, -10], size: [16, 3, 2], message: 'Hedefler — Tab / orta tık ile kilitlen; kilitliyken fareyi yana savurarak hedef değiştir. Sağ tık: nişan.' },
+    { id: 'info:dummies', pos: [0, 1.5, -10], size: [16, 3, 2], message: 'Hedefler — sol tık: büyü, Q: büyü tekerleği, G basılı: jestle çiz, tekerlek: büyü değiştir. Arkadaki düello mankeni sana büyü atar: Protego ile tam vaktinde savuşturursan geri yansır.' },
     { id: 'info:bridge', pos: [30, 1.5, -17.5], size: [4, 3, 2], message: 'Dönen köprü — hareketli merdivenlerin prototipi; üzerindeyken seni taşır ve döndürür.' },
     { id: 'info:slider', pos: [-40, 1.5, -24.5], size: [4, 3, 2], message: 'Kayan platform — seni taşır; üzerinden zıplarken platformun hızını korursun.' },
     { id: 'info:camera', pos: [-35, 1.5, 20], size: [14, 3, 2], message: 'Kamera testi — sütunlar ve dar koridor: kamera duvara girmez, X ile omuz değiştir.' },

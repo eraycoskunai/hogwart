@@ -1,10 +1,14 @@
 /**
- * @file TargetDummy — training dummy used as a lock-on target and as the
- * first AI state-machine client (idle → alert → targeted). Later phases
- * reuse it in the Defence classroom.
+ * @file TargetDummy — training dummy: lock-on target, AI state-machine
+ * client (idle → alert → targeted) and spell target. It takes damage
+ * (floating numbers), wobbles when stunned, freezes into an ice shell,
+ * turns to stone, burns, is knocked over by strong hits and gets back up.
+ * The duelling variant throws slow practice bolts at the player (Protego
+ * practice: parry them back).
  */
 import * as THREE from 'three';
 import { StateMachine } from '../core/StateMachine.js';
+import { ELEMENTS, PRACTICE_BOLT } from '../data/spells.js';
 
 export const DUMMY = Object.freeze({
   alertRange: 9,
@@ -13,6 +17,13 @@ export const DUMMY = Object.freeze({
   lockHeight: 1.35,
   colliderRadius: 0.3,
   colliderHeight: 1.9,
+  maxHealth: 100,
+  /** Seconds of rest before health refills; knocked-down time. */
+  regenDelay: 5,
+  knockdown: 3.2,
+  /** Push strength (spell impulse × power) that knocks it over. */
+  knockImpulse: 13,
+  practice: { range: 14, every: [2.6, 4.2], windup: 0.7 },
 });
 
 let _count = 0;
@@ -25,8 +36,19 @@ export class TargetDummy {
    * @param {number} yaw
    * @param {Record<string, THREE.Material>} mats shared materials
    */
-  constructor(ctx, position, yaw, mats) {
-    this.name = `Antrenman Mankeni ${++_count}`;
+  constructor(ctx, position, yaw, mats, opts = {}) {
+    this.caster = !!opts.caster;
+    this.name = this.caster ? `Düello Mankeni ${++_count}` : `Antrenman Mankeni ${++_count}`;
+    this.spells = ctx.spells ?? null;
+    this.targets = ctx.spellTargets ?? null;
+    this.takesDamage = true;
+    this.health = DUMMY.maxHealth;
+    this._restTimer = 0;
+    this.status = { stunned: 0, frozen: 0, petrified: 0, burning: 0, knocked: 0 };
+    this._fall = 0;
+    this._castTimer = DUMMY.practice.every[1];
+    this._windup = 0;
+    this._rnd = Math.random;
     this.bus = ctx.bus;
     this.physics = ctx.physics;
     this.position = position.clone();
@@ -45,6 +67,7 @@ export class TargetDummy {
       surface: 'wood',
       name: this.name,
     });
+    this.targets?.add(this.collider, this);
 
     /** @type {THREE.Vector3|null} */
     this._playerPos = null;
@@ -124,6 +147,14 @@ export class TargetDummy {
     disc.position.set(0, 0.33, -0.235);
     this.swivel.add(disc);
     this.disc = disc;
+    if (this.caster) {
+      // A practice wand in its right "hand" and a violet target.
+      const wand = cast(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.014, 0.4, 6), mats.wood));
+      wand.rotation.x = -Math.PI / 2;
+      wand.position.set(0.47, 0.52, -0.2);
+      this.swivel.add(wand);
+      this.disc.material = mats.glow;
+    }
     // Head
     const head = cast(new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 12), mats.burlap));
     head.scale.set(1, 1.1, 1);
@@ -144,6 +175,16 @@ export class TargetDummy {
     this.ring.position.y = 0.03;
     this.ring.visible = false;
     g.add(this.ring);
+    // Status shells (ice / stone / soot) over the sack and head.
+    this.shells = [];
+    for (const m of [sack, head]) {
+      const sh = new THREE.Mesh(m.geometry, mats.glow);
+      sh.position.copy(m.position);
+      sh.scale.copy(m.scale).multiplyScalar(1.07);
+      sh.visible = false;
+      this.swivel.add(sh);
+      this.shells.push(sh);
+    }
     return g;
   }
 
@@ -158,6 +199,73 @@ export class TargetDummy {
     const target = THREE.MathUtils.euclideanModulo(world - this.baseYaw + Math.PI, Math.PI * 2) - Math.PI;
     const d = THREE.MathUtils.euclideanModulo(target - this.headYaw + Math.PI, Math.PI * 2) - Math.PI;
     this.headYaw += d * (1 - Math.exp(-DUMMY.turnRate * dt));
+  }
+
+  // --- SpellTarget interface
+
+  /** @param {THREE.Vector3} out */
+  center(out) {
+    return out.set(this.position.x, this.position.y + 1.2, this.position.z);
+  }
+
+  /**
+   * React to a spell.
+   * @param {{effect:string, spell:any, power:number, dir:THREE.Vector3}} ev
+   * @returns {boolean}
+   */
+  onSpell(ev) {
+    const S = this.status;
+    const E = ELEMENTS;
+    const dmg = (ev.spell.damage ?? 0) * ev.power;
+    switch (ev.effect) {
+      case 'unlock':
+      case 'repair':
+        return false;
+      case 'finite':
+        for (const k of Object.keys(S)) if (k !== 'knocked') S[k] = 0;
+        return true;
+      case 'freeze':
+        if (S.burning > 0) S.burning = 0;
+        else S.frozen = E.freeze.duration;
+        break;
+      case 'petrify':
+        S.petrified = E.petrify.duration;
+        break;
+      case 'ignite':
+        if (S.frozen > 0) S.frozen = 0;
+        else S.burning = E.burn.duration;
+        break;
+      case 'stun':
+      case 'disarm':
+        S.stunned = E.stun.duration;
+        break;
+      default:
+        break;
+    }
+    const shove = (ev.spell.impulse ?? 0) * ev.power;
+    if (shove >= DUMMY.knockImpulse || ev.effect === 'slam' || (ev.effect === 'explode' && ev.power > 0.4) || (S.petrified > 0 && ev.effect === 'push')) {
+      this._knock();
+    }
+    this.wobble = Math.min(1.5, this.wobble + 0.6 + shove * 0.03);
+    this._hurt(dmg);
+    return true;
+  }
+
+  _hurt(amount) {
+    if (amount <= 0) return;
+    this.health -= amount;
+    this._restTimer = DUMMY.regenDelay;
+    if (this.health <= 0) this._knock();
+  }
+
+  _knock() {
+    this.status.knocked = DUMMY.knockdown;
+    this.status.frozen = 0;
+    this.status.petrified = 0;
+  }
+
+  get alive() {
+    return this.status.knocked <= 0;
   }
 
   // --- LockTarget interface
@@ -176,26 +284,81 @@ export class TargetDummy {
    */
   fixedUpdate(dt, playerPos) {
     this._playerPos = playerPos;
-    this.ai.update(dt);
+    const S = this.status;
+    const held = S.frozen > 0 || S.petrified > 0 || S.knocked > 0;
+    if (!held) this.ai.update(dt);
     this.wobble = Math.max(0, this.wobble - dt * 1.5);
+    for (const k of Object.keys(S)) S[k] = Math.max(0, S[k] - dt);
+    if (S.knocked <= 0 && this.health <= 0) this.health = DUMMY.maxHealth;
+    if (S.burning > 0) this._hurt(ELEMENTS.burn.dps * dt);
+    if (this._restTimer > 0) this._restTimer -= dt;
+    else this.health = Math.min(DUMMY.maxHealth, this.health + 20 * dt);
+    this._fall += ((S.knocked > 0 ? 1 : 0) - this._fall) * (1 - Math.exp(-(S.knocked > 0 ? 9 : 3) * dt));
+    if (this.caster && !held && S.stunned <= 0 && this.ai.current !== 'idle') this._practice(dt);
+  }
+
+  /** Duelling dummy: wind up (glowing disc), then throw a practice bolt. */
+  _practice(dt) {
+    const P = DUMMY.practice;
+    if (!this.spells || !this._playerPos || this._distToPlayer() > P.range) return;
+    if (this._windup > 0) {
+      this._windup -= dt;
+      if (this._windup <= 0) {
+        const from = this.center(new THREE.Vector3()).setY(this.position.y + 1.45);
+        const to = this._playerPos.clone().setY(this._playerPos.y + 1.1);
+        const dir = to.sub(from).normalize();
+        from.addScaledVector(dir, DUMMY.colliderRadius + 0.25);
+        this.spells.launch(PRACTICE_BOLT, { id: 'practice', from, dir, owner: this });
+        this._castTimer = P.every[0] + this._rnd() * (P.every[1] - P.every[0]);
+      }
+      return;
+    }
+    this._castTimer -= dt;
+    if (this._castTimer <= 0) this._windup = P.windup;
   }
 
   /** @param {number} time */
   render(time) {
-    this.swivel.rotation.y = this.headYaw;
-    this.swivel.rotation.z = Math.sin(time * 9) * 0.06 * this.wobble;
+    const S = this.status;
+    const still = S.frozen > 0 || S.petrified > 0;
+    this.swivel.rotation.y = this.headYaw + (S.stunned > 0 && !still ? Math.sin(time * 14) * 0.5 : 0);
+    this.swivel.rotation.z = still ? 0 : Math.sin(time * 9) * 0.06 * this.wobble;
+    // Knocked over backwards on its base.
+    this.group.rotation.set(-this._fall * 1.35, this.baseYaw, 0, 'YXZ');
     this.ring.visible = this.locked;
     if (this.locked) this.ring.rotation.z = time * 1.5;
+    // Status shells.
+    const V = this.spells?.visuals;
+    const mat = !V ? null : S.frozen > 0 ? V.iceMat : S.petrified > 0 ? V.stoneMat : S.burning > 0 ? V.charMat : null;
+    for (const sh of this.shells) {
+      sh.visible = !!mat;
+      if (mat) sh.material = mat;
+    }
+    if (this.caster) this.disc.scale.setScalar(1 + (this._windup > 0 ? Math.sin(time * 30) * 0.25 + 0.4 : 0));
+    // Fire and stun stars.
+    if (this.spells && S.burning > 0) {
+      const p = this.position;
+      for (let k = 0; k < 2; k++) {
+        this.spells.glow.spawn({ x: p.x + (Math.random() - 0.5) * 0.4, y: p.y + 1 + Math.random() * 0.8, z: p.z + (Math.random() - 0.5) * 0.4 }, { x: 0, y: 1.3, z: 0 }, { life: 0.5, size: 0.28, endSize: 0.04, color: '#ffd060', endColor: '#ff2a00', drag: 1.5 });
+      }
+    }
+    if (this.spells && S.stunned > 0 && Math.random() < 0.3) {
+      const a = time * 6;
+      const p = this.position;
+      this.spells.glow.spawn({ x: p.x + Math.cos(a) * 0.3, y: p.y + 2.05, z: p.z + Math.sin(a) * 0.3 }, { x: 0, y: 0, z: 0 }, { life: 0.4, size: 0.09, color: '#ffe070', shape: 1 });
+    }
   }
 
   /** Debug-panel description. */
   get debugState() {
-    return `${this.ai.current} (${this._distToPlayer().toFixed(1)} m)`;
+    const st = Object.entries(this.status).filter(([, v]) => v > 0).map(([k]) => k).join(',');
+    return `${this.ai.current} (${this._distToPlayer().toFixed(1)} m) · can ${Math.ceil(this.health)}${st ? ` · ${st}` : ''}`;
   }
 
   dispose() {
     this.bus.off('camera:lock', this._onLock);
     this.physics.removeCollider(this.collider);
+    this.targets?.remove(this);
     this.group.traverse((o) => o.geometry?.dispose());
     this.group.removeFromParent();
   }

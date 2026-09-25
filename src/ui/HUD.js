@@ -19,7 +19,7 @@ export const HUD_TIMING = Object.freeze({
 
 const HELP_ACTIONS = [
   'moveForward', 'moveBack', 'moveLeft', 'moveRight', 'jump', 'sprint', 'walk', 'crouch',
-  'aim', 'lockOn', 'shoulderSwap', 'interact', 'quickSave', 'quickLoad', 'help', 'pause', 'debug',
+  'cast', 'spellWheel', 'gesture', 'aim', 'lockOn', 'shoulderSwap', 'interact', 'quickSave', 'quickLoad', 'help', 'pause', 'debug',
 ];
 
 export class HUD {
@@ -235,7 +235,7 @@ export class HUD {
       return `<tr><td>${ACTIONS[a].label}</td><td><kbd>${keys}</kbd></td></tr>`;
     }).join('');
     this.el.help.innerHTML = `<h3>Kontroller</h3><table>${rows}</table>
-      <p class="pad">Gamepad: sol çubuk hareket · sağ çubuk kamera · A zıpla · B çömel · LT nişan · R3 kilitlen · L3 depar</p>`;
+      <p class="pad">Gamepad: sol çubuk hareket · sağ çubuk kamera · A zıpla · B çömel · RT büyü · LB tekerlek · RB jest · LT nişan · R3 kilitlen · L3 depar</p>`;
   }
 
   setVisible(v) {

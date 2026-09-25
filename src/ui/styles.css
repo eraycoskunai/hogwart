@@ -371,3 +371,52 @@ table.binds td { padding: 3px 0; }
   .cc-preview { right: 10px; top: 10px; width: calc(44vw - 30px); max-height: calc(100vh - 20px); padding: 8px; }
   .cc-name { font-size: 18px; }
 }
+
+/* ------------------------------------------------------------ spells */
+
+.spell-hud { position: absolute; inset: 0; pointer-events: none; }
+.sp-focus { position: absolute; left: 28px; bottom: 8px; width: min(240px, 38vw); display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #cfe0ff; text-shadow: 0 1px 2px #000; }
+.sp-focus-bar { flex: 1; height: 6px; border-radius: 4px; background: rgba(10, 16, 30, 0.7); overflow: hidden; border: 1px solid rgba(140, 180, 255, 0.35); }
+.sp-focus-bar i { display: block; height: 100%; background: linear-gradient(90deg, #3a6ad8, #9fd0ff); transform-origin: left; }
+.sp-focus-bar.low i { background: linear-gradient(90deg, #6a3ad8, #c89aff); animation: sp-pulse 0.6s infinite alternate; }
+@keyframes sp-pulse { to { opacity: 0.5; } }
+.sp-current {
+  --c: #fff; position: absolute; right: 24px; bottom: 70px; width: min(260px, 60vw); padding: 10px 12px 10px 60px;
+  border-radius: 8px; background: rgba(12, 10, 8, 0.62); border: 1px solid rgba(201, 162, 74, 0.35); min-height: 52px;
+}
+.sp-current b { display: block; color: var(--c); font-size: 16px; font-variant: small-caps; letter-spacing: 0.04em; text-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent); }
+.sp-current small { display: block; font-size: 11px; line-height: 1.35; color: #d8cbb8; margin-top: 2px; }
+.sp-current.poor b { opacity: 0.55; }
+.sp-cd {
+  --p: 0deg; position: absolute; left: 10px; top: 50%; width: 38px; height: 38px; margin-top: -19px; border-radius: 50%;
+  background: radial-gradient(circle, var(--c) 0 28%, transparent 32%), conic-gradient(rgba(0, 0, 0, 0.7) var(--p), transparent 0);
+  border: 2px solid var(--c); box-shadow: 0 0 12px color-mix(in srgb, var(--c) 50%, transparent);
+}
+.sp-pips { display: flex; gap: 4px; margin-top: 5px; }
+.sp-pips i { width: 14px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.15); }
+.sp-pips i.on { background: var(--gold-bright); }
+.sp-wheel { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; transition: opacity 0.12s; }
+.sp-wheel.show { opacity: 1; }
+.sp-wheel::before { content: ''; position: absolute; left: -190px; top: -190px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(10, 8, 6, 0.75) 40%, rgba(10, 8, 6, 0.35) 70%, transparent 72%); }
+.sp-slot {
+  --c: #fff; position: absolute; left: 0; top: 0; padding: 4px 8px; border-radius: 12px; font-size: 12px; white-space: nowrap;
+  color: #e8dcc8; background: rgba(20, 16, 12, 0.85); border: 1px solid rgba(255, 255, 255, 0.12); transition: transform 0.1s;
+}
+.sp-slot.hover { color: #fff; border-color: var(--c); box-shadow: 0 0 12px var(--c); background: rgba(40, 30, 20, 0.95); }
+.sp-slot.cooling { opacity: 0.5; }
+.sp-wheel-center { position: absolute; left: -90px; top: -40px; width: 180px; text-align: center; }
+.sp-wheel-center b { display: block; color: var(--gold-bright); font-variant: small-caps; font-size: 17px; }
+.sp-wheel-center small { display: block; font-size: 11px; color: #d8cbb8; line-height: 1.35; }
+.sp-gesture { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 320px; height: 320px; opacity: 0; transition: opacity 0.2s; border-radius: 50%; background: radial-gradient(circle, rgba(8, 10, 20, 0.45), transparent 70%); }
+.sp-gesture.show { opacity: 1; }
+.sp-gesture-result { position: absolute; left: 50%; top: calc(50% + 150px); transform: translateX(-50%); font-size: 16px; color: #bfe8ff; text-shadow: 0 1px 3px #000; opacity: 0; transition: opacity 0.2s; font-variant: small-caps; }
+.sp-gesture-result.show { opacity: 1; }
+.sp-gesture-result.bad { color: #ff9a8a; }
+.sp-banner { position: absolute; left: 50%; top: 26%; transform: translateX(-50%) scale(0.9); font-size: 26px; letter-spacing: 0.12em; font-variant: small-caps; color: var(--gold-bright); text-shadow: 0 0 18px rgba(255, 200, 90, 0.8), 0 2px 4px #000; opacity: 0; transition: opacity 0.2s, transform 0.2s; white-space: nowrap; }
+.sp-banner.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.sp-banner[data-kind='parry'] { color: #bfe0ff; text-shadow: 0 0 18px rgba(120, 180, 255, 0.9), 0 2px 4px #000; }
+.sp-number { position: absolute; font-size: 20px; font-weight: bold; text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 1px 2px #000; pointer-events: none; }
+@media (max-width: 640px) {
+  .sp-current { bottom: 64px; right: 12px; padding-left: 54px; }
+  .sp-wheel::before { left: -150px; top: -150px; width: 300px; height: 300px; }
+}

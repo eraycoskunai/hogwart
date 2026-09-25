@@ -59,6 +59,8 @@ export class LightManager {
       intensity: o.intensity,
       distance: o.distance,
       flicker: o.flicker ?? 'steady',
+      /** Ranking multiplier (spell lights, Lumos). */
+      priority: o.priority ?? 1,
       seed: Math.random() * 1000,
       enabled: true,
       level: 1,
@@ -91,7 +93,7 @@ export class LightManager {
     // Rank sources by how much they could light the viewer's surroundings.
     const ranked = this.sources
       .filter((s) => s.enabled)
-      .map((s) => ({ s, score: s.intensity / (1 + s.position.distanceToSquared(viewer) / (s.distance * s.distance)) }))
+      .map((s) => ({ s, score: (s.priority ?? 1) * s.intensity / (1 + s.position.distanceToSquared(viewer) / (s.distance * s.distance)) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, this.pool.length)
       .map((r) => r.s);

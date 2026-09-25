@@ -56,6 +56,8 @@ export class CastleInterior {
     this.cellState = new Map(INTERIOR.cells.map((c) => [c.id, { spec: c, cell: null }]));
     ctx.state.castle ??= { revealed: [], variant: null, doors: {} };
     this.state = ctx.state.castle;
+    this.state.unlocked ??= [];
+    this.spellHandlers = [];
   }
 
   /** Every library key the region uses. */
@@ -91,7 +93,7 @@ export class CastleInterior {
       mats: this.mats,
       portraits: this.gallery,
       variantOf: () => this.state.variant,
-      dummyCtx: { scene: this.root, physics: ctx.physics, bus: ctx.bus, mats: { iron: this.mats.iron, wood: this.mats.wood, burlap: this.mats.cloth, rope: this.mats.cloth, target: this.mats.leather } },
+      dummyCtx: { scene: this.root, physics: ctx.physics, bus: ctx.bus, spells: ctx.spells, spellTargets: ctx.spellTargets, mats: { iron: this.mats.iron, wood: this.mats.wood, burlap: this.mats.cloth, rope: this.mats.cloth, target: this.mats.leather } },
       onGate: (g) => this._gate(g),
     });
 
@@ -223,6 +225,7 @@ export class CastleInterior {
     });
     L.door = door;
     this.doors.push(door);
+    this._doorSpells(door);
     return door;
   }
 
@@ -280,10 +283,11 @@ export class CastleInterior {
       height: g.height,
       leaves: 2,
       kind: 'grille',
-      lock: lock ? { message: lock.message, spell: lock.spell } : null,
+      lock: lock && !this.state.unlocked.includes('restricted') ? { message: lock.message, spell: lock.spell, unlocked: lock.unlocked, id: 'restricted' } : null,
     });
     this.gate = door;
     this.doors.push(door);
+    this._doorSpells(door);
     this.items.push(this.ctx.interactions.add({
       id: 'gate:restricted',
       position: new THREE.Vector3(g.at, g.y + 1.2, g.z),
@@ -291,6 +295,37 @@ export class CastleInterior {
       label: () => (door.lock ? 'Kilitli kapı' : door.label),
       action: () => this._useDoor(door),
     }));
+  }
+
+  /** Doors answer to Alohomora (unlock + open) and Depulso (burst open). */
+  _doorSpells(door) {
+    const T = this.ctx.spellTargets;
+    if (!T) return;
+    const handler = {
+      name: door.name,
+      center: (out) => out.copy(door.position).setY(door.position.y + 1.2),
+      onSpell: (ev) => {
+        if (door.exit) return false;
+        if (ev.effect === 'unlock') {
+          if (door.lock) {
+            if (door.lock.spell && door.lock.spell !== 'alohomora') return false;
+            const msg = door.lock.unlocked ?? 'Klik! Kilit açıldı.';
+            if (door.lock.id) this.state.unlocked.push(door.lock.id);
+            door.unlock();
+            this.ctx.ui.toast(msg);
+          }
+          if (!door.open) this._useDoor(door);
+          return true;
+        }
+        if (ev.effect === 'push' && !door.lock && !door.open) {
+          this._useDoor(door);
+          return true;
+        }
+        return false;
+      },
+    };
+    for (const leaf of door.leaves) T.add(leaf.body.collider, handler);
+    this.spellHandlers.push(handler);
   }
 
   // ----------------------------------------------------------- interaction
@@ -554,6 +589,7 @@ export class CastleInterior {
     for (const id of this.cellState.keys()) this._unloadCell(id);
     for (const it of this.items) ctx.interactions.remove(it);
     if (this._portraitProvider) ctx.interactions.removeProvider(this._portraitProvider);
+    for (const h of this.spellHandlers) ctx.spellTargets?.remove(h);
     for (const d of this.doors) d.dispose();
     for (const L of this.links) {
       if (!L.filler) continue;

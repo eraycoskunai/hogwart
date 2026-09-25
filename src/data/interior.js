@@ -433,7 +433,7 @@ export const INTERIOR = Object.freeze({
 
   /** Doors with locks (by link index a→b ids). */
   locks: [
-    { cell: 'library', grille: true, spell: 'alohomora', message: 'Yasak Bölüm kilitli. Bir Alohomora büyüsü işe yarayabilir… (büyüler Faz 7\'de)' },
+    { cell: 'library', grille: true, spell: 'alohomora', message: 'Yasak Bölüm kilitli. Bir Alohomora büyüsü işe yarayabilir…', unlocked: 'Klik! Yasak Bölüm\'ün kilidi açıldı.' },
   ],
 
   /** The common-room guardian portrait on the 3rd floor. */

@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 6 — Şato içi, kapılar, hareketli merdivenler, konuşan portreler, hayaletler, oda akışı** (Faz 1–5 tamam)
+> **Durum: Faz 7 — Büyü sistemi, efektler, jest tanıma, fizik etkileşimleri** (Faz 1–6 tamam)
 
 ## Çalıştırma
 
@@ -32,6 +32,10 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 | Hedefe kilitlen / bırak | Tab / orta tık (kilitliyken fareyi savurup hedef değiştir) | R3 |
 | Omuz değiştir | X | Y |
 | Etkileşim (kapı, portre, sandık, tuğla …) | E | X |
+| Büyü yap (Protego: basılı tut) | Sol tık | RT |
+| Büyü tekerleği (basılı tut, fareyle seç) | Q | LB |
+| Büyü değiştir | Fare tekerleği | — |
+| Jestle büyü çiz (basılı tut, fareyle çiz) | G / Fare 5 | RB |
 | Hızlı kayıt / yükleme | F5 / F9 | — |
 | Kontrol listesi | H | Back |
 | Menü | Esc / P | Start |
@@ -195,6 +199,44 @@ Arazideki **Giriş Holü'nün kuzey kapısında** (F3 → Işınlan → *Şato k
 - **Etkileşim sistemi**: en yakın ve önündeki kapı/portre/sandık/tuğla için ekranda `E: …` istemi; konuşmalar altyazı olarak
   görünür; seçimler için panel (1–3 tuşları veya fare).
 
+## Büyüler (Faz 7)
+
+Test salonundaki hedef alanı (F3 → Bölge → Motor Test Salonu), fizik alanı ve süs havuzu büyü denemek için uygundur.
+Arkadaki **düello mankeni** sana yavaş antrenman büyüleri atar.
+
+| Büyü | Etki |
+|---|---|
+| Lumos / Nox | Asanın ucunda ışık (gerçek nokta ışığı) / söndürme |
+| Expelliarmus | Silahsızlandırma, geri itme |
+| Stupefy | Sersemletme (mankenler döner, yıldızlar çıkar) |
+| Protego | Basılı tutulan kalkan balonu; ilk 0,3 sn içinde gelen büyüyü **savuşturup geri yansıtır** |
+| Petrificus Totalus | Hedefi taşa çevirir (itilince devrilir) |
+| Incendio | Ateş topu; ahşabı tutuşturur (yanan sandık sonunda kömürleşip dağılır), buzu eritir |
+| Glacius | Buz; hedefi dondurur, suyun yüzeyinde **üzerinde yürünebilen buz tabakası** oluşturur (Kara Göl'de de), ateşi söndürür |
+| Wingardium Leviosa | Nişan alınan nesneyi havaya kaldırıp önünde taşır; tekrar yapınca bırakır |
+| Accio / Depulso / Descendo | Çekme / itme / yere çarpma |
+| Confringo | Patlama: çevredeki cisimleri savurur, sandıkları parçalar, ekranı sarsar ve anlık yavaşlatır |
+| Reparo | Parçalanan nesneyi parçaları uçarak birleşecek şekilde onarır |
+| Alohomora | Kilit açar (Yasak Bölüm parmaklığı); Depulso kilitsiz kapıları iter |
+| Episkey | İyileştirme |
+| Finite Incantatem | Hedefteki büyüleri bozar (buz, taş, ateş, havada tutma) |
+| Expecto Patronum | Işıktan koruyucu hayvan (türü karakterine göre: geyik, tavşan, su samuru, tilki, kurt, at, kedi, baykuş) |
+
+- **Odak (mana)**, bekleme süreleri ve **ustalık**: her büyü kullandıkça ve isabet ettikçe 5 seviyeye kadar gelişir (daha güçlü,
+  daha ucuz, daha hızlı). Asanın ahşap/çekirdek/esneklik değerleri güç, hız, isabet ve odak maliyetini hafifçe değiştirir.
+- **Jest modu**: G'yi basılı tutup fareyle çiz; $1 Unistroke tanıyıcı (yön duyarlı değişken) 17 şekli tanır. Temiz bir çizim
+  büyüyü %25 güçlü ve %30 ucuz yapar. Şekiller: Lumos ↑, Nox ↓, Depulso →, Finite ←, Stupefy Z, Confringo M, Protego saat
+  yönünde daire, Reparo ters daire, Incendio üçgen, Glacius sarmal, Leviosa "savur ve fiske", Expelliarmus S, Petrificus L,
+  Accio <, Episkey ✓, Alohomora U, Descendo kanca, Patronus ∞.
+- **Kombolar**: Leviosa + Depulso (fırlatma), Leviosa + Descendo (çarpma), Glacius + Confringo (buz parçalama),
+  Petrificus + Depulso (heykel devirme), Stupefy + Stupefy.
+- **Element kuralları**: ateş buzu eritir ve ahşabı yakar; buz ve su ateşi söndürür (yanan sandık suya düşerse söner).
+- **Mermiler fiziksel**: hız, yerçekimi (Incendio, Glacius, Confringo hafifçe düşer), sekme (Glacius 1, Depulso 2), kalkandan
+  yansıma. Oyuncuya gelen düşman büyüleri hasar verir.
+- **Efektler**: tek çizim çağrılı GPU partikülleri (parlak + duman katmanı, 7 500 parçacık), iz şeritleri, büyü ışıkları,
+  patlama parlaması ve şok dalgası, kalkan balonu (darbe dalgalanması), buz/taş/kömür kabukları, uçan hasar sayıları,
+  kombo ve ustalık başlıkları, kamera sarsıntısı ve hit-stop. Büyü sözünü karakter dudaklarıyla söyler.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
@@ -205,6 +247,8 @@ oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; 
 Çizim çağrıları ve üçgenler artık tüm kare boyunca (gölge ve efekt geçişleri dahil) sayılır.
 **Zaman ve hava** bölümü: saat kaydırıcısı, zaman hızı (×1 / ×10 / ×60 / ×300), hava durumu düğmeleri,
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
+**Büyüler** bölümü: büyüyü seçme düğmeleri, sınırsız odak anahtarı, tüm büyülerde usta olma, efektleri temizleme; odak,
+mermi, kırık nesne, buz tabakası ve partikül istatistikleri.
 **Karakter** bölümü: tüm animasyonları oynatma (döngüsel olanlar ikinci tıkta durur), ifadeler, konuşma, bina renkleri, kıyafet
 değiştirme, rastgele karakter, karakter yaratma ekranı; iskelet görünümü, IK ve kumaş simülasyonu anahtarları; kemik/üçgen/parçacık
 sayıları, üretim süresi, animasyon katmanları ve IK durumu, asa bilgisi.
@@ -219,10 +263,11 @@ src/core/             EventBus, StateMachine, Input (klavye/fare/gamepad + tuş 
 src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sky/SkyShader, Environment, SceneLighting (CSM),
                       LightManager, FlameSprites, Weather + WeatherParticles + PrecipitationOccluder, PostFX,
                       ColorGrading, DustMotes, SurfaceShader, TerrainMaterial, LakeMaterial, WindowMaterial,
-                      GrassField, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
+                      GrassField, ParticleSystem, TrailRibbons, SpellVisuals, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
 src/physics/          Geometry (kapsül/üçgen/ışın testleri), Collider, CollisionWorld (3B uzamsal hash + DDA ışın),
                       PhysicsWorld (cannon-es rijit cisimler + kinematik platformlar), CharacterController, TriggerSystem
 src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Student (arka plan öğrencileri), Ghost, Interaction,
+                      spells/ (SpellCaster, SpellSystem, SpellTargets, Unistroke),
                       TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
@@ -233,8 +278,8 @@ src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerat
 src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
-src/ui/               HUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, test salonu, arazi, şato, bitki örtüsü
+src/ui/               HUD, SpellHUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, test salonu, arazi, şato, şato içi, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -248,7 +293,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 4. ✅ Karakter üretici, iskelet, animasyonlar, IK, cübbe simülasyonu, karakter yaratma
 5. ✅ Şato modül kiti, Hogwarts dış mekânı, arazi, göl, orman
 6. ✅ İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming
-7. Büyü sistemi, efektler, jest tanıma
+7. ✅ Büyü sistemi, efektler, jest tanıma
 8. Savaş, düşmanlar, yapay zekâ, düello, boss
 9. Süpürge dükkânı, uçuş, yarışlar, Quidditch
 10. Dostlar, diyalog, yakınlık, NPC rutinleri

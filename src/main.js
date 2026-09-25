@@ -30,6 +30,11 @@ import { TriggerSystem } from './physics/TriggerSystem.js';
 import { Player } from './gameplay/Player.js';
 import { RegionManager } from './world/RegionManager.js';
 import { Interaction } from './gameplay/Interaction.js';
+import { SpellTargets } from './gameplay/spells/SpellTargets.js';
+import { SpellSystem } from './gameplay/spells/SpellSystem.js';
+import { SpellCaster } from './gameplay/spells/SpellCaster.js';
+import { SpellHUD } from './ui/SpellHUD.js';
+import { SPELL_WHEEL, MASTERY } from './data/spells.js';
 import { describeCode } from './data/input.js';
 import { HUD } from './ui/HUD.js';
 import { PauseMenu } from './ui/PauseMenu.js';
@@ -52,6 +57,9 @@ const SAVE_MIGRATIONS = Object.freeze({
   // v2 adds the created character (older saves get the default student).
   1: (d) => ({ ...d, character: null }),
 });
+/** Strong spell impacts: brief slow motion; spell messages stay this long (s). */
+const SPELL_HIT_STOP = Object.freeze({ duration: 0.06, scale: 0.12 });
+const SPELL_TOAST = 2.6;
 /** Door transitions: seconds of fade before / after the region swap. */
 const TRAVEL_FADE = 0.35;
 /** How far the head / wand targets are projected along the view (m). */
@@ -85,7 +93,7 @@ class Game {
     this._hadPointerLock = false;
     /** Persistent world state shared with regions (secrets, doors …); saved. */
     this.worldState = {};
-    this.toggles = { collision: false, noclip: false, god: false, hud: true, skeleton: false, ik: true, cloth: true };
+    this.toggles = { collision: false, noclip: false, god: false, hud: true, skeleton: false, ik: true, cloth: true, focus: false };
     this._loop = (t) => this.frame(t);
   }
 
@@ -127,12 +135,16 @@ class Game {
     this.physics = new PhysicsWorld(bus);
     this.triggers = new TriggerSystem(bus);
     this.interactions = new Interaction(bus);
+    this.spellTargets = new SpellTargets();
+    this.spells = new SpellSystem({ bus, physics: this.physics, lights: this.atmosphere.lights, targets: this.spellTargets, scene: this.scene, shared: this.library.shared, time: this.time });
 
     const atm = this.atmosphere;
     this.regions = new RegionManager({
       scene: this.scene, physics: this.physics, triggers: this.triggers, bus, preset, library: this.library,
       lights: atm.lights, flames: atm.flames, grading: atm.grading, sky: atm.sky, renderer: this.renderer.renderer,
       interactions: this.interactions,
+      spells: this.spells,
+      spellTargets: this.spellTargets,
       state: this.worldState,
       ui: {
         say: (name, text) => this.hud?.say(name, text),
@@ -145,6 +157,7 @@ class Game {
     this.room = await this.regions.load(RegionManager.defaultId, (label, t) => this._progress(label, r0 + (r1 - r0) * t));
     this.textureLoadMs = performance.now() - t0;
     this._applyRegionView();
+    this.spells.setRegion(this.room);
 
     this._progress('Karakter hazırlanıyor…', 0.88);
     await nextFrame();
@@ -156,12 +169,15 @@ class Game {
     this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
     this.atmosphere.registerNow();
     this.cameraRig = new ThirdPersonCamera(this.camera, this.physics, this.settings, bus);
+    this.spells.setPlayer(this.player);
+    this.caster = new SpellCaster({ bus, player: this.player, system: this.spells, physics: this.physics, lights: this.atmosphere.lights, camera: this.camera, cameraRig: this.cameraRig });
     this.cameraRig.snapTo(this.room.spawn.position, this.room.spawn.yaw);
     this.cinematic = new CinematicCamera(this.camera, bus);
 
     this._progress('Arayüz yükleniyor…', 0.9);
     await nextFrame();
     this.hud = new HUD(document.getElementById('hud'), bus, this.input);
+    this.spellHud = new SpellHUD(document.getElementById('hud'), bus);
     this.pauseMenu = new PauseMenu(document.getElementById('menu'), {
       settings: this.settings,
       input: this.input,
@@ -377,7 +393,9 @@ class Game {
     }
     if (item && input.pressed('interact')) this.interactions.trigger();
 
-    this.cameraRig.handleLook(input, this.time.unscaledDt, this.room.lockTargets, this.player.position);
+    // Magic: the wheel and gesture drawing take over the mouse.
+    const mouseTaken = this.caster.handleInput(input, this.time.unscaledDt);
+    if (!mouseTaken) this.cameraRig.handleLook(input, this.time.unscaledDt, this.room.lockTargets, this.player.position);
     this.player.gatherInput(input, this.cameraRig);
     this.cameraRig.aiming = this.player.intent.aim && !this.player.dead;
     this.cameraRig.sprinting = this.player.intent.sprint;
@@ -409,6 +427,15 @@ class Game {
     });
     bus.on('player:landed', ({ fallHeight }) => {
       if (fallHeight > PLAYER.fallDamage.shakeHeight) this.cameraRig.addTrauma(Math.min(0.9, fallHeight / 14));
+    });
+    bus.on('spell:impact', ({ strength, hitStop }) => {
+      this.cameraRig.addTrauma(strength);
+      if (hitStop) this.time.hitStop(SPELL_HIT_STOP.duration, SPELL_HIT_STOP.scale);
+    });
+    bus.on('spell:message', ({ text }) => this.hud.toast(text, SPELL_TOAST));
+    bus.on('spell:damage', ({ pos, amount, color }) => {
+      _v.copy(pos).project(this.camera);
+      if (_v.z < 1) this.spellHud.number(((_v.x + 1) / 2) * this.renderer.width, ((1 - _v.y) / 2) * this.renderer.height, String(amount), color);
     });
     bus.on('player:damaged', ({ amount }) => {
       this.cameraRig.addTrauma(Math.min(0.6, amount / 60));
@@ -508,7 +535,11 @@ class Game {
     this.cameraRig.releaseLock();
     this.fsm.change('loading', `${RegionManager.list().find((r) => r.id === id).name} yükleniyor…`);
     await nextFrame();
+    // Spell effects hold region bodies and lights: drop them first.
+    this.spells.clear();
+    this.caster.reset();
     this.room = await this.regions.load(id, (label, t) => this._loadingProgress(label, t));
+    this.spells.setRegion(this.room);
     this._applyRegionView();
     this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
     const pos = at?.position ?? this.room.spawn.position;
@@ -564,7 +595,7 @@ class Game {
       if (best) p.lookTarget = best.headPoint(_look);
       else p.lookTarget = _look.copy(cam.position).addScaledVector(_dir, VIEW_TARGET.look);
     }
-    if (p.intent.aim) {
+    if (p.intent.aim || this.caster.facing) {
       const hit = this.physics.raycast(cam.position, _dir, VIEW_TARGET.aim, {}, _hit);
       p.aimTarget = hit ? _aim.copy(hit.point) : _aim.copy(cam.position).addScaledVector(_dir, VIEW_TARGET.aim);
       p.lookTarget = p.aimTarget;
@@ -582,6 +613,7 @@ class Game {
       playtime: this.playtime,
       character: this.characterData,
       player: this.player.serialize(),
+      spells: this.caster.serialize(),
       camera: { yaw: this.cameraRig.yaw, pitch: this.cameraRig.pitch },
     };
   }
@@ -620,6 +652,7 @@ class Game {
       this.characterData.wand = this.player.character.data.wand;
     }
     this.player.deserialize(d.player);
+    this.caster.deserialize(d.spells);
     this.room.onTeleport(this.player.position);
     this.clock.deserialize(d.clock);
     this.atmosphere.weather.deserialize(d.weather);
@@ -674,6 +707,7 @@ class Game {
             'Dinamik (uyanık)': `${p.dynamics} (${p.awake})`,
             Kinematik: p.kinematics,
           },
+          Büyüler: { ...this.caster.stats, 'Mermi / kırık / buz': `${this.spells.stats.projectiles} / ${this.spells.stats.broken} / ${this.spells.stats.floes}`, 'Partikül (toplam)': this.spells.stats.emitted },
           Oyuncu: {
             Durum: `${this.player.locomotion}${c.crouching ? ' · çömelik' : ''}`,
             Konum: `${fmt(c.position.x)} ${fmt(c.position.y)} ${fmt(c.position.z)}`,
@@ -697,10 +731,16 @@ class Game {
           if (id === this.room.id || !(this.fsm.is('play') || this.fsm.is('pause'))) return;
           if (await this.switchRegion(id)) this.fsm.change('play');
         },
+        spell: (id) => this.caster.select(id),
+        masterAll: () => {
+          for (const id of SPELL_WHEEL) this.caster.xp[id] = MASTERY.levels[MASTERY.levels.length - 1];
+        },
+        clearSpells: () => this.spells.clear(),
         toggle: (key) => {
           this.toggles[key] = !this.toggles[key];
           if (key === 'collision') this.debugDraw.visible = this.toggles.collision;
           if (key === 'noclip') this.player.controller.noclip = this.toggles.noclip;
+          if (key === 'focus') this.caster.unlimited = this.toggles.focus;
           if (key === 'god') this.player.godMode = this.toggles.god;
           if (key === 'hud') this.hud.setVisible(this.toggles.hud);
           if (key === 'skeleton') this._ensureSkeletonHelper();
@@ -847,7 +887,7 @@ class Game {
     this.room.fixedUpdate(dt, player.position);
 
     const lock = this.cameraRig.lockTarget;
-    if (player.intent.aim) player.faceYaw = this.cameraRig.yaw;
+    if (player.intent.aim || this.caster.facing) player.faceYaw = this.cameraRig.yaw;
     else if (lock) {
       lock.getLockPoint(_v).sub(player.position);
       player.faceYaw = Math.atan2(-_v.x, -_v.z);
@@ -857,6 +897,7 @@ class Game {
     const c = player.controller;
     this.physics.syncPlayerProxy(c.position, c.velocity, c.radius, c.height);
     this.physics.step(dt);
+    this.spells.fixedUpdate(dt);
     this.triggers.update(c.position, c.height, c.radius);
     if (c.swimming && !this._deepWarned && this.room.waterDepth(c.position.x, c.position.z) > LAKE.deepWarning) {
       this._deepWarned = true;
@@ -893,6 +934,9 @@ class Game {
       this.cameraRig.update(dt, player.visualPosition, { crouching: player.controller.crouching, speed: player.speed });
     }
 
+    if (this.fsm.is('play') || this.fsm.is('cinematic')) this.caster.update(dt);
+    this.spells.update(dt, this.camera);
+    this.spellHud.update(dt, this.caster);
     this.room.render(this.time.elapsed, this.atmosphere.night, alpha);
     this.room.frame(dt, this.camera, { night: this.atmosphere.night, hour: this.clock.hour, wind: this.atmosphere.weather.wind, player: player.visualPosition, playerHead: _head });
     this.debugDraw.update(player.controller, player.visualPosition);

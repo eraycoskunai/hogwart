@@ -343,7 +343,7 @@ export class TestRoom {
 
   _buildDummies() {
     for (const d of this.data.dummies) {
-      const dummy = new TargetDummy(this.ctx, new THREE.Vector3().fromArray(d.pos), d.yaw, this.materials);
+      const dummy = new TargetDummy(this.ctx, new THREE.Vector3().fromArray(d.pos), d.yaw, this.materials, { caster: d.caster });
       this.dummies.push(dummy);
     }
   }
@@ -528,13 +528,17 @@ export class TestRoom {
     for (const s of this.students) s.update(dt, env);
   }
 
-  /** The test hall has no water. */
-  waterLevelAt() {
-    return -Infinity;
+  /** Only the ornamental pool holds water (Glacius freezes it). */
+  waterLevelAt(x, z) {
+    const P = this.data.decorations.pool;
+    const hx = P.size[0] / 2 - P.rim;
+    const hz = P.size[1] / 2 - P.rim;
+    return Math.abs(x - P.pos[0]) < hx && Math.abs(z - P.pos[2]) < hz ? P.pos[1] + P.waterLevel : -Infinity;
   }
 
-  waterDepth() {
-    return 0;
+  waterDepth(x, z) {
+    const l = this.waterLevelAt(x, z);
+    return l > -Infinity ? l - this.data.decorations.pool.pos[1] : 0;
   }
 
   /** Per-frame camera work (nothing streams in the test hall). */
