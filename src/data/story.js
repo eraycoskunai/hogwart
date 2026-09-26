@@ -74,7 +74,7 @@ export const QUESTS = Object.freeze([
     id: 'main1', main: true, chapter: 1, name: 'Hoş geldin',
     desc: 'Şatoya ilk adım. Büyük Salon\'u bul ve sınıf arkadaşlarınla tanış.',
     steps: [
-      { kind: 'reach', region: 'castle', pos: [0, 0, -30], radius: 12, text: 'Büyük Salon\'a git' },
+      { kind: 'cell', cell: 'greatHall', text: 'Büyük Salon\'a git' },
       { kind: 'talk', text: 'Bir sınıf arkadaşınla konuş' },
     ],
     reward: { points: 10, galleons: 20 },
