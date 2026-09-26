@@ -34,6 +34,10 @@ import { SpellTargets } from './gameplay/spells/SpellTargets.js';
 import { SpellSystem } from './gameplay/spells/SpellSystem.js';
 import { SpellCaster } from './gameplay/spells/SpellCaster.js';
 import { SpellHUD } from './ui/SpellHUD.js';
+import { EncounterManager } from './gameplay/combat/EncounterManager.js';
+import { DuelClub } from './gameplay/combat/DuelClub.js';
+import { CombatHUD } from './ui/CombatHUD.js';
+import { COMBAT, BOSS } from './data/combat.js';
 import { SPELL_WHEEL, MASTERY } from './data/spells.js';
 import { describeCode } from './data/input.js';
 import { HUD } from './ui/HUD.js';
@@ -93,7 +97,7 @@ class Game {
     this._hadPointerLock = false;
     /** Persistent world state shared with regions (secrets, doors …); saved. */
     this.worldState = {};
-    this.toggles = { collision: false, noclip: false, god: false, hud: true, skeleton: false, ik: true, cloth: true, focus: false };
+    this.toggles = { collision: false, noclip: false, god: false, hud: true, skeleton: false, ik: true, cloth: true, focus: false, ai: true };
     this._loop = (t) => this.frame(t);
   }
 
@@ -173,11 +177,19 @@ class Game {
     this.caster = new SpellCaster({ bus, player: this.player, system: this.spells, physics: this.physics, lights: this.atmosphere.lights, camera: this.camera, cameraRig: this.cameraRig });
     this.cameraRig.snapTo(this.room.spawn.position, this.room.spawn.yaw);
     this.cinematic = new CinematicCamera(this.camera, bus);
+    // Enemies, bosses and the Duelling Club.
+    this.combat = new EncounterManager({
+      ctx: { scene: this.scene, library: this.library, preset }, physics: this.physics, spells: this.spells, caster: this.caster,
+      targets: this.spellTargets, bus, player: this.player, interactions: this.interactions, atmosphere: this.atmosphere,
+      settings: this.settings, time: this.time, state: this.worldState,
+    });
+    this._enterCombatRegion();
 
     this._progress('Arayüz yükleniyor…', 0.9);
     await nextFrame();
     this.hud = new HUD(document.getElementById('hud'), bus, this.input);
     this.spellHud = new SpellHUD(document.getElementById('hud'), bus);
+    this.combatHud = new CombatHUD(document.getElementById('hud'), bus);
     this.pauseMenu = new PauseMenu(document.getElementById('menu'), {
       settings: this.settings,
       input: this.input,
@@ -380,7 +392,9 @@ class Game {
       });
     }
     if (input.pressed('shoulderSwap')) this.cameraRig.swapShoulder();
-    if (input.pressed('lockOn') && !this.player.dead) this.cameraRig.toggleLock(this.room.lockTargets, this.player.position);
+    const lockTargets = this._lockTargets();
+    if (input.pressed('lockOn') && !this.player.dead) this.cameraRig.toggleLock(lockTargets, this.player.position);
+    if (input.pressed('dodge')) this._dodge();
 
     // "Press E" prompt for the nearest door / portrait / object.
     const p = this.player;
@@ -394,11 +408,52 @@ class Game {
     if (item && input.pressed('interact')) this.interactions.trigger();
 
     // Magic: the wheel and gesture drawing take over the mouse.
-    const mouseTaken = this.caster.handleInput(input, this.time.unscaledDt);
-    if (!mouseTaken) this.cameraRig.handleLook(input, this.time.unscaledDt, this.room.lockTargets, this.player.position);
+    // No casting while stunned or mid-roll.
+    const busy = this.player.stunned > 0 || this.player.dodging > 0;
+    if (busy) this.caster.cancelShield();
+    const mouseTaken = busy ? false : this.caster.handleInput(input, this.time.unscaledDt);
+    if (!mouseTaken) this.cameraRig.handleLook(input, this.time.unscaledDt, lockTargets, this.player.position);
     this.player.gatherInput(input, this.cameraRig);
     this.cameraRig.aiming = this.player.intent.aim && !this.player.dead;
     this.cameraRig.sprinting = this.player.intent.sprint;
+  }
+
+  /** Lock-on candidates: the region's (dummies) and live enemies. */
+  _lockTargets() {
+    const list = this.room.lockTargets;
+    const foes = this.combat.lockTargets;
+    return foes.length ? [...list, ...foes] : list;
+  }
+
+  /** Dodge roll toward the stick / keys (backwards when idle); costs focus. */
+  _dodge() {
+    const p = this.player;
+    const D = COMBAT.dodge;
+    if (!p.canDodge) return;
+    if (!this.caster.unlimited && this.caster.focus < D.focus) {
+      this.hud.notice('Kaçınmak için yeterli odak yok');
+      return;
+    }
+    if (p.dodge(p.intent.move)) {
+      if (!this.caster.unlimited) this.caster.focus -= D.focus;
+      this.caster.cancelShield();
+    }
+  }
+
+  /** Hook the combat systems to the freshly loaded region. */
+  _enterCombatRegion() {
+    this.combat.setRegion(this.room);
+    this.duel = this.room.id === 'castle'
+      ? new DuelClub({ mgr: this.combat, room: this.room, player: this.player, caster: this.caster, bus, interactions: this.interactions, state: this.worldState, ui: { say: (n, t) => this.hud?.say(n, t) }, cameraRig: this.cameraRig })
+      : null;
+  }
+
+  _leaveCombatRegion() {
+    this.duel?.dispose();
+    this.duel = null;
+    this.combat.clear();
+    this.player.clearCombat();
+    this.player.nonLethal = false;
   }
 
   // ------------------------------------------------------------- events
@@ -442,6 +497,15 @@ class Game {
       if (amount >= 20) this.time.hitStop(0.06, 0.1);
     });
     bus.on('player:died', () => this.cameraRig.releaseLock());
+    bus.on('combat:bossDefeated', ({ enemy }) => {
+      const id = Object.keys(BOSS).find((k) => BOSS[k].name === enemy.def.name);
+      if (id) (this.worldState.bosses ??= {})[id] = true;
+      this.hud.notice(`${enemy.name} yenildi! Orman biraz daha sessiz…`);
+    });
+    bus.on('combat:killed', ({ enemy }) => {
+      if (this.cameraRig.lockTarget === enemy) this.cameraRig.releaseLock();
+    });
+    bus.on('player:stunned', () => this.cameraRig.addTrauma(0.35));
     bus.on('player:respawned', ({ position }) => this.cameraRig.snapTo(position, this.player.yaw));
     bus.on('input:pointerLock', ({ locked }) => {
       if (locked) this._hadPointerLock = true;
@@ -535,11 +599,13 @@ class Game {
     this.cameraRig.releaseLock();
     this.fsm.change('loading', `${RegionManager.list().find((r) => r.id === id).name} yükleniyor…`);
     await nextFrame();
-    // Spell effects hold region bodies and lights: drop them first.
+    // Spell effects and enemies hold region bodies and lights: drop them first.
+    this._leaveCombatRegion();
     this.spells.clear();
     this.caster.reset();
     this.room = await this.regions.load(id, (label, t) => this._loadingProgress(label, t));
     this.spells.setRegion(this.room);
+    this._enterCombatRegion();
     this._applyRegionView();
     this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
     const pos = at?.position ?? this.room.spawn.position;
@@ -670,7 +736,7 @@ class Game {
       teleports: this.room.teleports,
       regions: RegionManager.list(),
       getToggles: () => ({ ...this.toggles }),
-      getEntities: () => this.room.debugEntities,
+      getEntities: () => [...(this.room.debugEntities ?? []), ...this.combat.debugEntities],
       getSections: () => {
         const r = this.renderer.stats;
         const p = this.physics.stats;
@@ -707,6 +773,7 @@ class Game {
             'Dinamik (uyanık)': `${p.dynamics} (${p.awake})`,
             Kinematik: p.kinematics,
           },
+          Savaş: { Zorluk: this.settings.get('difficulty'), ...this.combat.stats, ...(this.duel?.stats ?? {}), 'Oyuncu durumu': `sersem ${fmt(this.player.stunned, 1)} · yavaş ${fmt(this.player.slowed, 1)} · kaçınma ${fmt(this.player.dodging, 2)}` },
           Büyüler: { ...this.caster.stats, 'Mermi / kırık / buz': `${this.spells.stats.projectiles} / ${this.spells.stats.broken} / ${this.spells.stats.floes}`, 'Partikül (toplam)': this.spells.stats.emitted },
           Oyuncu: {
             Durum: `${this.player.locomotion}${c.crouching ? ' · çömelik' : ''}`,
@@ -736,11 +803,32 @@ class Game {
           for (const id of SPELL_WHEEL) this.caster.xp[id] = MASTERY.levels[MASTERY.levels.length - 1];
         },
         clearSpells: () => this.spells.clear(),
+        enemy: (type) => {
+          const p = this.player.position;
+          _fwd.set(-Math.sin(this.player.yaw), 0, -Math.cos(this.player.yaw));
+          const zone = this.combat.ensureDebugZone(p);
+          const at = p.clone().addScaledVector(_fwd, 8);
+          at.y = this.combat.groundAt(at.x, at.z, p.y) + 0.05;
+          this.combat.spawnEnemy(type, at, zone);
+        },
+        killEnemies: () => {
+          for (const e of this.combat.enemies) if (!e.dead && e.type !== 'duelist') e.die();
+        },
+        staggerEnemies: () => {
+          for (const e of this.combat.enemies) if (!e.dead && !e.def.immune) e.hurt(1, e.maxPoise);
+        },
+        bossPhase: () => {
+          const b = this.combat.boss;
+          if (!b || b.dead) return;
+          if (b.hanging) for (const a of b.anchors) a.health = 0;
+          else b.hurt(Math.max(1, b.health - b.maxHealth * (b.phase === 1 ? BOSS.spiderQueen.phases[1] - 0.01 : 0.02)), 0);
+        },
         toggle: (key) => {
           this.toggles[key] = !this.toggles[key];
           if (key === 'collision') this.debugDraw.visible = this.toggles.collision;
           if (key === 'noclip') this.player.controller.noclip = this.toggles.noclip;
           if (key === 'focus') this.caster.unlimited = this.toggles.focus;
+          if (key === 'ai') this.combat.enabled = this.toggles.ai;
           if (key === 'god') this.player.godMode = this.toggles.god;
           if (key === 'hud') this.hud.setVisible(this.toggles.hud);
           if (key === 'skeleton') this._ensureSkeletonHelper();
@@ -898,6 +986,8 @@ class Game {
     this.physics.syncPlayerProxy(c.position, c.velocity, c.radius, c.height);
     this.physics.step(dt);
     this.spells.fixedUpdate(dt);
+    this.combat.fixedUpdate(dt);
+    this.duel?.fixedUpdate(dt);
     this.triggers.update(c.position, c.height, c.radius);
     if (c.swimming && !this._deepWarned && this.room.waterDepth(c.position.x, c.position.z) > LAKE.deepWarning) {
       this._deepWarned = true;
@@ -935,11 +1025,18 @@ class Game {
     }
 
     if (this.fsm.is('play') || this.fsm.is('cinematic')) this.caster.update(dt);
+    const env = { camera: this.camera, wind: _wind, playerHead: _head };
+    this.combat.frame(dt, env);
+    this.duel?.render(dt, env);
     this.spells.update(dt, this.camera);
     this.spellHud.update(dt, this.caster);
     this.room.render(this.time.elapsed, this.atmosphere.night, alpha);
     this.room.frame(dt, this.camera, { night: this.atmosphere.night, hour: this.clock.hour, wind: this.atmosphere.weather.wind, player: player.visualPosition, playerHead: _head });
     this.debugDraw.update(player.controller, player.visualPosition);
+    this.combatHud.update(dt, {
+      enemies: this.combat.enemies, camera: this.camera, width: this.renderer.width, height: this.renderer.height,
+      player, chill: this.combat.chill, focus: this.duel?.focus ?? (this.combat.boss?.engaged ? this.combat.boss : null),
+    });
 
     let lockScreen = null;
     if (this.cameraRig.getLockPoint(_v) && !this.fsm.is('cinematic')) {

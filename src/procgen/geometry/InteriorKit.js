@@ -283,8 +283,8 @@ export function crateStack(count, seed) {
   return merge(list);
 }
 
-/** Suit of armour facing -Z. @returns geometry (metal) */
-export function armor() {
+/** Suit of armour facing -Z (with its halberd unless `weapon` is false). @returns geometry (metal) */
+export function armor(weapon = true) {
   const H = IK.armor.height;
   const list = [];
   list.push(box(0.55, 0.12, 0.4)); // plinth
@@ -308,8 +308,10 @@ export function armor() {
   list.push(box(0.2, 0.02, 0.04, 0, 1.76, -0.13)); // visor slit bar
   list.push(new THREE.ConeGeometry(0.03, 0.18, 6).translate(0, H - 0.03, 0)); // crest spike
   // Halberd in the right hand.
-  list.push(cyl(0.018, 0.018, 2.1, 6, 0.32, 0.12));
-  list.push(box(0.03, 0.26, 0.2, 0.32, 1.95, -0.08));
+  if (weapon) {
+    list.push(cyl(0.018, 0.018, 2.1, 6, 0.32, 0.12));
+    list.push(box(0.03, 0.26, 0.2, 0.32, 1.95, -0.08));
+  }
   return merge(list);
 }
 

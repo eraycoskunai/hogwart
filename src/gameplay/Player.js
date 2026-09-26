@@ -3,7 +3,10 @@
  * damage, respawning and the visual avatar (procedural student character
  * with skeletal animation, IK, facial animation and cloth) together.
  *
- * Emits: player:damaged, player:healed, player:died, player:respawned,
+ * Combat moves: dodge roll with invulnerability frames, being stunned
+ * (controls locked), slowed (webs) and a non-lethal mode for duels.
+ *
+ * Emits: player:dodged, player:stunned, player:yielded, player:damaged, player:healed, player:died, player:respawned,
  *        player:landed, player:jumped, player:state, player:rebuilt
  */
 import * as THREE from 'three';
@@ -14,6 +17,7 @@ import { Character } from '../procgen/characters/Character.js';
 import { Animator } from '../animation/Animator.js';
 import { FaceAnimator } from '../animation/FaceAnimator.js';
 import { makeGroundProbe } from '../animation/GroundProbe.js';
+import { COMBAT } from '../data/combat.js';
 
 /** Seconds a pained expression stays after taking damage. */
 const PAIN_SECONDS = 0.9;
@@ -68,6 +72,16 @@ export class Player {
     this.dead = false;
     this.invulnerable = 0;
     this.godMode = false;
+    /** Seconds of lost control (hit hard / stunning curse). */
+    this.stunned = 0;
+    /** Seconds of reduced speed (webbed). */
+    this.slowed = 0;
+    /** Seconds left in a dodge roll, its direction and cooldown. */
+    this.dodging = 0;
+    this._dodgeDir = new THREE.Vector3();
+    this._dodgeCd = 0;
+    /** Duels: health stops at 1 and the player yields instead of dying. */
+    this.nonLethal = false;
 
     /** Facing yaw of the body (radians, 0 = -Z). */
     this.yaw = 0;
@@ -139,6 +153,12 @@ export class Player {
       this.controller.jumpHeld = false;
       return;
     }
+    if (this.stunned > 0) {
+      it.move.set(0, 0, 0);
+      it.moveMag = 0;
+      this.controller.jumpHeld = false;
+      return;
+    }
     const axis = input.moveAxis();
     cam.flatForward(_fwd);
     cam.flatRight(_right);
@@ -170,7 +190,8 @@ export class Player {
     if (c.noclip) return PLAYER.noclipSpeed * it.moveMag * (it.sprint ? 2.5 : 1);
     if (it.moveMag < 1e-3) return 0;
     let s = PLAYER.runSpeed;
-    if (c.crouching) s = PLAYER.crouchSpeed;
+    if (this.slowed > 0) s = PLAYER.walkSpeed;
+    else if (c.crouching) s = PLAYER.crouchSpeed;
     else if (it.aim) s = PLAYER.aimSpeed;
     else if (it.walk) s = PLAYER.walkSpeed;
     else if (it.sprint && c.grounded) s = PLAYER.sprintSpeed;
@@ -195,9 +216,18 @@ export class Player {
     }
 
     if (this.invulnerable > 0) this.invulnerable -= dt;
-    c.wantCrouch = this.intent.crouch && !c.noclip && !c.swimming;
+    if (this.stunned > 0) this.stunned -= dt;
+    if (this.slowed > 0) this.slowed -= dt;
+    if (this._dodgeCd > 0) this._dodgeCd -= dt;
+    c.wantCrouch = this.intent.crouch && !c.noclip && !c.swimming && this.stunned <= 0;
     c.waterLevel = this.waterLevelAt ? this.waterLevelAt(c.position.x, c.position.z) : -Infinity;
-    c.step(dt, this.intent.move, this._wishSpeed());
+    if (this.dodging > 0) {
+      this.dodging -= dt;
+      const D = COMBAT.dodge;
+      c.velocity.x = this._dodgeDir.x * D.speed;
+      c.velocity.z = this._dodgeDir.z * D.speed;
+      c.step(dt, this._dodgeDir, D.speed);
+    } else c.step(dt, this.intent.move, this.stunned > 0 ? 0 : this._wishSpeed());
 
     for (const e of c.events) {
       if (e.type === 'land') this._onLand(e);
@@ -208,7 +238,8 @@ export class Player {
     // Facing: toward movement, or toward the aim/lock yaw while strafing.
     this.yaw += c.yawDelta;
     let target = null;
-    if (this.faceYaw !== null) target = this.faceYaw;
+    if (this.dodging > 0) target = null;
+    else if (this.faceYaw !== null) target = this.faceYaw;
     else if (this.speed > 0.4 && this.intent.moveMag > 0.05) {
       const v = c.velocity;
       target = Math.atan2(-v.x, -v.z);
@@ -236,6 +267,55 @@ export class Player {
       this.locomotion = loco;
       this.bus.emit('player:state', { state: loco });
     }
+  }
+
+  // ---------------------------------------------------------------- combat
+
+  /** Can a dodge start now? */
+  get canDodge() {
+    const c = this.controller;
+    return !this.dead && this.stunned <= 0 && this.dodging <= 0 && this._dodgeCd <= 0 && c.grounded && !c.swimming && !c.noclip;
+  }
+
+  /**
+   * Roll in `dir` (flat; falls back to backwards) with invulnerability frames.
+   * @param {THREE.Vector3} dir
+   * @returns {boolean} started
+   */
+  dodge(dir) {
+    if (!this.canDodge) return false;
+    const D = COMBAT.dodge;
+    this._dodgeDir.copy(dir).setY(0);
+    if (this._dodgeDir.lengthSq() < 1e-4) this._dodgeDir.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    this._dodgeDir.normalize();
+    this.dodging = D.duration;
+    this._dodgeCd = D.duration + D.cooldown;
+    this.invulnerable = Math.max(this.invulnerable, D.iframes);
+    this.controller.wantCrouch = false;
+    this.animator.play('dodgeRoll', { speed: 1.25 });
+    this.bus.emit('player:dodged', {});
+    return true;
+  }
+
+  /** Lose control for `t` seconds. @param {number} t */
+  stun(t) {
+    if (this.dead || this.godMode || !(t > 0)) return;
+    this.stunned = Math.max(this.stunned, t);
+    this.dodging = 0;
+    this.animator.play('stun');
+    this.bus.emit('player:stunned', { time: t });
+  }
+
+  /** Move at walking pace for `t` seconds. @param {number} t */
+  slow(t) {
+    if (this.dead || this.godMode) return;
+    this.slowed = Math.max(this.slowed, t);
+  }
+
+  /** Clear combat states (respawn, region change, duel end). */
+  clearCombat() {
+    this.stunned = this.slowed = this.dodging = this._dodgeCd = 0;
+    this.animator.stop('stun');
   }
 
   _computeLocomotion() {
@@ -276,6 +356,13 @@ export class Player {
     const scale = ignoreDifficulty ? 1 : DIFFICULTIES[this.settings.get('difficulty')]?.damageTaken ?? 1;
     const dmg = amount * scale;
     this.health = Math.max(0, this.health - dmg);
+    if (this.nonLethal && this.health <= 0) {
+      this.health = 1;
+      this._pain = PAIN_SECONDS;
+      this.bus.emit('player:damaged', { amount: dmg, source, health: this.health, max: this.maxHealth });
+      this.bus.emit('player:yielded', { source });
+      return;
+    }
     this._pain = PAIN_SECONDS;
     this.animator.play('hit');
     this.bus.emit('player:damaged', { amount: dmg, source, health: this.health, max: this.maxHealth });
@@ -305,6 +392,7 @@ export class Player {
     this.dead = false;
     this.health = this.maxHealth;
     this.invulnerable = PLAYER.invulnerableAfterRespawn;
+    this.clearCombat();
     this.controller.wantCrouch = false;
     this.controller.height = PLAYER.height;
     this.controller.crouching = false;

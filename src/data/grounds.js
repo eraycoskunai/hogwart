@@ -40,6 +40,8 @@ export const TERRAIN = Object.freeze({
   flats: [
     { name: 'pitch', center: [480, -70], radii: [100, 62], height: 16, blend: 50 },
     { name: 'hut', center: [-252, 62], radii: [28, 24], height: null, blend: 22 },
+    /** Spider Queen's lair: a flattened clearing deep in the Forbidden Forest. */
+    { name: 'lair', center: [-620, -230], radii: [26, 26], height: null, blend: 18 },
   ],
   path: { width: 3.4, blend: 7, cobbleNearCastle: 0 },
   /** [x, z, y|null] control points; null keeps the natural height. */
@@ -85,6 +87,7 @@ export const VEGETATION = Object.freeze({
     { center: [480, -70], radius: 120 },
     { center: [-252, 62], radius: 24 },
     { center: [318, -12], radius: 30 },
+    { center: [-620, -230], radius: 24 },
   ],
   forestMix: { oak: 0.34, pine: 0.4, dead: 0.26 },
   meadowMix: { oak: 0.7, pine: 0.3 },
@@ -170,7 +173,9 @@ export const GROUND_TELEPORTS = Object.freeze([
   { name: 'Yasak Orman derinlikleri', pos: [-560, null, -60], yaw: Math.PI / 2 },
   { name: 'Quidditch sahası', pos: [410, null, -52], yaw: -Math.PI / 2 },
   { name: 'Uçurum altı (göl)', pos: [10, null, 171], yaw: 0 },
-  { name: 'Dağ eteği', pos: [420, null, -560], yaw: Math.PI * 0.8 },
+  { name: 'Dağ eteği (trol)', pos: [420, null, -560], yaw: Math.PI * 0.8 },
+  { name: 'Kuzey yolu (karanlık büyücüler)', pos: [30, null, -455], yaw: 0 },
+  { name: 'Örümcek yuvası (boss)', pos: [-620, null, -196], yaw: 0 },
 ]);
 
 export const GROUND_CINEMATICS = Object.freeze({

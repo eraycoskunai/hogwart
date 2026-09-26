@@ -316,7 +316,7 @@ export class CellBuilder {
     const yaw = Math.atan2(x1 - x0, z1 - z0);
     const g = new THREE.PlaneGeometry(f.width, len);
     g.rotateX(-Math.PI / 2);
-    this._add(g, M((x0 + x1) / 2, this.min.y + 0.012, (z0 + z1) / 2, yaw), 'carpet');
+    this._add(g, M((x0 + x1) / 2, this.min.y + (f.y ?? 0) + 0.012, (z0 + z1) / 2, yaw), 'carpet');
   }
 
   _f_rug(f) {
@@ -457,6 +457,16 @@ export class CellBuilder {
         this._add(K.bench(t.length - 0.4), M(bx, y, bz, yaw), f.mat);
         this._box(bx, y + 0.23, bz, t.length - 0.4, 0.46, 0.42, 'Sıra', 'wood', yaw);
       }
+    }
+  }
+
+  /** Free-standing benches (spectators). */
+  _f_benches(f) {
+    for (const b of f.list) {
+      const [x, z] = b.pos;
+      const yaw = b.axis === 'z' ? Math.PI / 2 : 0;
+      this._add(K.bench(b.length), M(x, this.min.y, z, yaw), f.mat);
+      this._box(x, this.min.y + 0.23, z, b.length, 0.46, 0.42, 'Sıra', 'wood', yaw);
     }
   }
 

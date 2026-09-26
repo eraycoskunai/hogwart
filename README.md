@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 7 — Büyü sistemi, efektler, jest tanıma, fizik etkileşimleri** (Faz 1–6 tamam)
+> **Durum: Faz 8 — Savaş, düşmanlar, yapay zekâ, Düello Kulübü, boss** (Faz 1–7 tamam)
 
 ## Çalıştırma
 
@@ -36,6 +36,7 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 | Büyü tekerleği (basılı tut, fareyle seç) | Q | LB |
 | Büyü değiştir | Fare tekerleği | — |
 | Jestle büyü çiz (basılı tut, fareyle çiz) | G / Fare 5 | RB |
+| Kaçın (yuvarlan, kısa dokunulmazlık) | F / Sol Alt | D-pad aşağı |
 | Hızlı kayıt / yükleme | F5 / F9 | — |
 | Kontrol listesi | H | Back |
 | Menü | Esc / P | Start |
@@ -237,18 +238,67 @@ Arkadaki **düello mankeni** sana yavaş antrenman büyüleri atar.
   patlama parlaması ve şok dalgası, kalkan balonu (darbe dalgalanması), buz/taş/kömür kabukları, uçan hasar sayıları,
   kombo ve ustalık başlıkları, kamera sarsıntısı ve hit-stop. Büyü sözünü karakter dudaklarıyla söyler.
 
+## Savaş (Faz 8)
+
+**Oyuncunun düello hareketleri**
+- **Kaçınma** (F): yönlü yuvarlanma, ilk 0,34 sn dokunulmazlık (büyüler içinden geçer, darbeler ıskalar), odak harcar.
+- **Protego / savuşturma**: kalkanı darbeden hemen önce (0,3 sn pencere) kaldırırsan büyüler geri yansır, yakın dövüş
+  saldırganı sersemler; geç kaldırırsan darbe odağından yer.
+- **Sersemletme çubuğu**: her isabet düşmanın sarı çubuğunu doldurur; dolunca düşman 3,2 sn sersemler, %50 fazla hasar alır ve
+  **E: Bitirici büyü** (ağır çekim, azami canın %55'i; boss'ta %12) açılır.
+- **Kalkan kırma**: karanlık büyücüler kalkan kaldırır; Confringo, Descendo, Expelliarmus ve Depulso kalkanı hızla kırar,
+  kırılan kalkan düşmanı sersemletir. Düşmanlar da (zorluğa göre) büyünü sana geri yansıtabilir.
+- Ağır darbeler seni **sersemletir** (kontrol kısa süre gider), örümcek ağı **yavaşlatır**.
+
+**Düşmanlar** (hepsi özgün, prosedürel modeller)
+
+| Düşman | Nerede | Davranış |
+|---|---|---|
+| Karanlık büyücü | Kuzey yolu kampı (3 kişi) | Mesafe korur, yan adım, 3 büyü, kalkan, kaçınma, canı azalınca siper alır |
+| Dev örümcek / yavru | Yasak Orman kenarı ve derinlikleri | Hamle-ısırık (koni uyarısı), ağ tükürme (yavaşlatır), grup halinde kuşatma |
+| Dağ trolü | Dağ eteği | Yavaş ama yıkıcı: daire uyarılı yere vurma (ağır sersemletme), koni süpürme |
+| Kurt adam | Dolunay açıklığı (yalnız gece) | Uluma, şerit uyarılı sıçrama, iki vuruşluk pençe |
+| Solgun | Göl kıyısı (yalnız gece) | Özgün, ruh emici bir hayalet: yakınında can ve odak erir, ekran buzlanır. Tüm büyüler içinden geçer — yalnızca **Patronus** kovar |
+| Büyülü zırh | Şato: Yasak Bölüm | Parmaklıktan içeri girince uyanır; sersemletmeye dirençli, patlayıcı büyülere zayıf |
+| Cin peri sürüsü | Şato: KSKS sınıfı | 8'li sürü, başının etrafında döner, sırayla çimdikler |
+
+**Yapay zekâ**: davranış ağacı (devriye → şüphelenme → arama → saldırı → geri çekilme), görüş konisi + görüş hattı, ses
+(büyü yapmak ve çarpma sesleri duyulur), fark etme çubuğu. Her karşılaşma alanı için fizik ışınlarıyla kareler halinde
+(arka planda) örneklenen **gezinme ızgarası** + A* (yol yumuşatma), siper noktası arama, grup koordinasyonu: yardım çağırma,
+**saldırı jetonları** (aynı anda en fazla 1/2/3 saldırgan) ve kuşatma yuvaları. Zorluk (Ayarlar → Zorluk: Hikâye / Normal /
+Zor) can, tepki süresi, isabet, saldırgan sayısı, savuşturma şansı ve saldırganlığı değiştirir. Temizlenen kamplar 4 dk sonra
+yeniden dolar.
+
+**Boss — Nyxara, Örümceklerin Anası** (Örümcek yuvası, Yasak Orman'ın derinliği; F3 → Işınlan):
+1. *Yuva*: koni ısırık, daire süpürme, ağ/zehir yaylımı, yavru örümcek çağırma.
+2. *Tepedeki ağ* (%66): ağa tırmanır, hasar almaz gibidir; zehir yağmuru yeşil dairelere düşer. Üç parlayan **ağ çapasını**
+   Incendio ile yak ya da Confringo ile patlat → yere çakılır ve uzun süre sersemler (bitirici fırsatı).
+3. *Öfke*: şerit uyarılı düz hücumlar, her şey daha hızlı.
+Tüm büyük saldırılar yerde renkli uyarı (daire / koni / şerit) ile önceden gösterilir; yenilince kayda geçer.
+
+**Düello Kulübü** (şato girişinin doğu kapısı; F3 → Işınlan → Düello Kulübü): Profesör Hester Kılıçgöz ile konuş (E).
+Beş rakiplik merdiven (1. sınıftan düello şampiyonuna); eğilme, 3-2-1 geri sayım, sahneden düşmek yenilgidir, canın bitince
+teslim olursun (düelloda ölmezsin). İlerleme kayda yazılır.
+
+**Arayüz**: düşmanların üstünde can/sersemletme/kalkan çubukları, boss / düello rakibi için büyük çubuk ve aşama adı, geri
+sayım, "Savuşturma!", "Kalkan kırıldı!", bitirici uyarıları, oyuncu durumu (sersem / yavaş), Solgun buzlanması.
+Kilitlenme (Tab) artık düşmanları da hedefler.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
 oyuncu durumu (zemin açısı, hız, kilit), yapay zekâ ve platform durumları, çarpışma şekilleri görünümü,
 noclip, ölümsüzlük, zaman ölçeği, bölge değiştirme (arazi / şato içi / test salonu), bölgeye göre ışınlanma menüsü (arazide 12,
-şato içinde 12 nokta), arazi LOD / ağaç / kaya / çimen istatistikleri; şato içinde yüklü/görünür oda, geçilen portal, akış kuyruğu,
+şato içinde 14 nokta), arazi LOD / ağaç / kaya / çimen istatistikleri; şato içinde yüklü/görünür oda, geçilen portal, akış kuyruğu,
 oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; sinematik/hasar/hit-stop/sarsıntı testleri.
 Çizim çağrıları ve üçgenler artık tüm kare boyunca (gölge ve efekt geçişleri dahil) sayılır.
 **Zaman ve hava** bölümü: saat kaydırıcısı, zaman hızı (×1 / ×10 / ×60 / ×300), hava durumu düğmeleri,
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 **Büyüler** bölümü: büyüyü seçme düğmeleri, sınırsız odak anahtarı, tüm büyülerde usta olma, efektleri temizleme; odak,
 mermi, kırık nesne, buz tabakası ve partikül istatistikleri.
+**Savaş** bölümü: her düşman türünü önüne çağırma, hepsini yok etme / sersemletme, boss'u sonraki aşamaya geçirme, düşman
+yapay zekâsı anahtarı; zorluk, karşılaşma alanlarının durumu, gezinme ızgarası boyutu, düello sırası ve oyuncu savaş durumu;
+varlıklar listesinde her düşmanın davranış ağacı durumu, canı, sersemletme ve farkındalık değeri.
 **Karakter** bölümü: tüm animasyonları oynatma (döngüsel olanlar ikinci tıkta durur), ifadeler, konuşma, bina renkleri, kıyafet
 değiştirme, rastgele karakter, karakter yaratma ekranı; iskelet görünümü, IK ve kumaş simülasyonu anahtarları; kemik/üçgen/parçacık
 sayıları, üretim süresi, animasyon katmanları ve IK durumu, asa bilgisi.
@@ -263,23 +313,24 @@ src/core/             EventBus, StateMachine, Input (klavye/fare/gamepad + tuş 
 src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sky/SkyShader, Environment, SceneLighting (CSM),
                       LightManager, FlameSprites, Weather + WeatherParticles + PrecipitationOccluder, PostFX,
                       ColorGrading, DustMotes, SurfaceShader, TerrainMaterial, LakeMaterial, WindowMaterial,
-                      GrassField, ParticleSystem, TrailRibbons, SpellVisuals, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
+                      GrassField, ParticleSystem, TrailRibbons, SpellVisuals, Telegraphs, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
 src/physics/          Geometry (kapsül/üçgen/ışın testleri), Collider, CollisionWorld (3B uzamsal hash + DDA ışın),
                       PhysicsWorld (cannon-es rijit cisimler + kinematik platformlar), CharacterController, TriggerSystem
 src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Student (arka plan öğrencileri), Ghost, Interaction,
                       spells/ (SpellCaster, SpellSystem, SpellTargets, Unistroke),
+                      ai/ (BehaviorTree, NavGrid + A*, Squad), combat/ (EncounterManager, Enemy, EnemyTypes, SpiderQueen, DuelClub),
                       TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
                       geometry/CastleKit (şato modülleri), geometry/InteriorKit (iç mekân ve mobilya),
-                      geometry/TreeGenerator (ağaç, kaya), textures/PortraitPainter (portreler)
+                      geometry/TreeGenerator (ağaç, kaya), textures/PortraitPainter (portreler), creatures/EnemyModels
 src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerator, BodyGenerator, Garments + ClothGarment,
                       WandGenerator, CharacterTextures, Appearance, Hairline, MeshKit
 src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
-src/ui/               HUD, SpellHUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, test salonu, arazi, şato, şato içi, bitki örtüsü
+src/ui/               HUD, SpellHUD, CombatHUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, test salonu, arazi, şato, şato içi, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -294,7 +345,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 5. ✅ Şato modül kiti, Hogwarts dış mekânı, arazi, göl, orman
 6. ✅ İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming
 7. ✅ Büyü sistemi, efektler, jest tanıma
-8. Savaş, düşmanlar, yapay zekâ, düello, boss
+8. ✅ Savaş, düşmanlar, yapay zekâ, düello, boss
 9. Süpürge dükkânı, uçuş, yarışlar, Quidditch
 10. Dostlar, diyalog, yakınlık, NPC rutinleri
 11. Ses motoru, SFX, adaptif müzik, konuşma

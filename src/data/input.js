@@ -23,6 +23,7 @@ export const ACTIONS = Object.freeze({
   cast: { label: 'Büyü yap', rebindable: true },
   spellWheel: { label: 'Büyü tekerleği (basılı tut)', rebindable: true },
   gesture: { label: 'Jestle büyü çiz (basılı tut)', rebindable: true },
+  dodge: { label: 'Kaçın (yuvarlan)', rebindable: true },
   help: { label: 'Kontroller', rebindable: true },
   quickSave: { label: 'Hızlı kayıt', rebindable: true },
   quickLoad: { label: 'Hızlı yükle', rebindable: true },
@@ -47,6 +48,7 @@ export const DEFAULT_KEY_BINDINGS = Object.freeze({
   cast: ['Mouse0'],
   spellWheel: ['KeyQ'],
   gesture: ['KeyG', 'Mouse4'],
+  dodge: ['KeyF', 'AltLeft'],
   help: ['KeyH'],
   quickSave: ['F5'],
   quickLoad: ['F9'],
@@ -63,6 +65,7 @@ export const GAMEPAD = Object.freeze({
     cast: [7], // RT (analog, thresholded)
     spellWheel: [4], // LB
     gesture: [5], // RB
+    dodge: [13], // D-pad down
     shoulderSwap: [3], // Y / Triangle
     aim: [6], // LT (analog, thresholded)
     sprint: [10], // L3

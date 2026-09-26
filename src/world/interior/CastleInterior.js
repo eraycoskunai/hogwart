@@ -484,6 +484,8 @@ export class CastleInterior {
     at('3. kat koridoru', 40, 21, -18, 0);
     at('İksir zindanı', -33, -6, 6, Math.PI / 2);
     at('Zindan merdiveni', -17, 0, 6, Math.PI / 2);
+    at('Düello Kulübü', 17.4, 0, 12.5, -Math.PI / 2);
+    at('Yasak Bölüm kapısı (zırhlar)', 26.2, 7, -34, 0);
     return list;
   }
 

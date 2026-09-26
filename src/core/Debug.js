@@ -6,6 +6,7 @@
 import { WEATHER_TYPES } from '../data/atmosphere.js';
 import { EXPRESSIONS, HOUSES } from '../data/character.js';
 import { SPELLS, SPELL_WHEEL } from '../data/spells.js';
+import { ENEMIES } from '../data/combat.js';
 
 /** Animation test buttons: [clip, label, looping toggle]. */
 const ANIM_BUTTONS = Object.freeze([
@@ -87,6 +88,10 @@ export class Debug {
         <div class="dbg-buttons">${SPELL_WHEEL.map((k) => `<button data-dbg-spell="${k}">${SPELLS[k].name.split(' ')[0]}</button>`).join('')}</div>
         <div class="dbg-buttons"><button data-dbg-act="masterAll">Tümünde usta ol</button><button data-dbg-act="clearSpells">Efektleri temizle</button></div>
       </div>
+      <div class="dbg-section"><h4>Savaş</h4>
+        <div class="dbg-buttons">${Object.entries(ENEMIES).map(([k, e]) => `<button data-dbg-enemy="${k}">${e.name}</button>`).join('')}</div>
+        <div class="dbg-buttons"><button data-dbg-act="killEnemies">Düşmanları yok et</button><button data-dbg-act="staggerEnemies">Hepsini sersemlet</button><button data-dbg-act="bossPhase">Boss: sonraki aşama</button></div>
+      </div>
       <div class="dbg-section"><h4>Bölge</h4><div class="dbg-regions"></div></div>
       <div class="dbg-section"><h4>Işınlan</h4><div class="dbg-teleports"></div></div>
       <div class="dbg-section"><h4>Yapay zekâ / varlıklar</h4><div class="dbg-ai"></div></div>`;
@@ -110,6 +115,7 @@ export class Debug {
       else if (b.dataset.dbgSpeed) this.p.actions.timeSpeed(Number(b.dataset.dbgSpeed));
       else if (b.dataset.dbgWeather) this.p.actions.weather(b.dataset.dbgWeather);
       else if (b.dataset.dbgAct) this.p.actions[b.dataset.dbgAct]?.();
+      else if (b.dataset.dbgEnemy) this.p.actions.enemy(b.dataset.dbgEnemy);
       else if (b.dataset.dbgAnim) this.p.actions.anim(b.dataset.dbgAnim, b.dataset.dbgLoop === '1');
       else if (b.dataset.dbgExpr) this.p.actions.expression(b.dataset.dbgExpr);
       else if (b.dataset.dbgHouse) this.p.actions.house(b.dataset.dbgHouse);
@@ -146,7 +152,7 @@ export class Debug {
   }
 
   _renderToggles() {
-    const labels = { collision: 'Çarpışma şekilleri', noclip: 'Noclip (uç)', god: 'Ölümsüzlük', hud: 'HUD', skeleton: 'İskelet', ik: 'IK', cloth: 'Kumaş simülasyonu', focus: 'Sınırsız odak' };
+    const labels = { collision: 'Çarpışma şekilleri', noclip: 'Noclip (uç)', god: 'Ölümsüzlük', hud: 'HUD', skeleton: 'İskelet', ik: 'IK', cloth: 'Kumaş simülasyonu', focus: 'Sınırsız odak', ai: 'Düşman yapay zekâsı' };
     const t = this.p.getToggles();
     this.togglesEl.innerHTML = Object.entries(labels)
       .map(([k, l]) => `<button class="${t[k] ? 'on' : ''}" data-dbg-toggle="${k}">${l}: ${t[k] ? 'açık' : 'kapalı'}</button>`)

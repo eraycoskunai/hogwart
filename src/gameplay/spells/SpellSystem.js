@@ -35,6 +35,8 @@ const _d = new THREE.Vector3();
 const _n = new THREE.Vector3();
 const _hit = { distance: 0, point: new THREE.Vector3(), normal: new THREE.Vector3(), collider: null };
 const UP = new THREE.Vector3(0, 1, 0);
+/** _impact result: the bolt was parried back and keeps flying. */
+const REFLECTED = 'reflected';
 
 const _su = new THREE.Vector3();
 const _sv = new THREE.Vector3();
@@ -110,7 +112,7 @@ export class SpellSystem {
   /**
    * Launch a bolt.
    * @param {any} spell spell data (SPELLS entry or PRACTICE_BOLT)
-   * @param {{id:string, from:THREE.Vector3, dir:THREE.Vector3, power?:number, owner?:any}} o
+   * @param {{id:string, from:THREE.Vector3, dir:THREE.Vector3, power?:number, owner?:any, ignore?:Set<number>}} o
    */
   launch(spell, o) {
     const p = {
@@ -122,6 +124,7 @@ export class SpellSystem {
       bounces: spell.bounces ?? 0,
       power: o.power ?? 1,
       owner: o.owner ?? 'player',
+      ignore: o.ignore ?? null,
       trail: this.trails.acquire(spell.trail ?? spell.color, spell.radius * 0.9),
       light: spell.light ? this.lights.add({ position: o.from.clone(), color: spell.light.color, intensity: spell.light.intensity, distance: spell.light.distance, priority: 3 }) : null,
       age: 0,
@@ -172,7 +175,7 @@ export class SpellSystem {
     // Shields (hostile bolts vs the player's Protego).
     if (p.owner !== 'player' && this.shield && this._hitsShield(p, from, to)) return p.life > 0;
     // Hostile bolts vs the player.
-    if (p.owner !== 'player' && this.player && !this.player.dead) {
+    if (p.owner !== 'player' && this.player && !this.player.dead && !(this.player.invulnerable > 0)) {
       const feet = this.player.position;
       const a = new THREE.Vector3(feet.x, feet.y + 0.35, feet.z);
       const b = new THREE.Vector3(feet.x, feet.y + 1.55, feet.z);
@@ -193,7 +196,9 @@ export class SpellSystem {
     if (hit) {
       const point = hit.point.clone();
       const normal = hit.normal.clone();
-      if (this._impact(p, hit.collider, point, normal)) return false;
+      const consumed = this._impact(p, hit.collider, point, normal);
+      if (consumed === REFLECTED) return true;
+      if (consumed) return false;
       // Bounce.
       if (p.bounces > 0) {
         p.bounces--;
@@ -253,6 +258,7 @@ export class SpellSystem {
       p.vel.subVectors(target, from).normalize().multiplyScalar(p.spell.speed * CASTING.shield.reflectBoost);
       p.power *= CASTING.shield.reflectBoost;
       p.owner = 'player';
+      p.ignore = null;
       p.id = 'reflect';
       p.pos.copy(from);
       p.life = p.spell.life;
@@ -267,6 +273,7 @@ export class SpellSystem {
     const S = p.spell;
     this.player.damage(Math.round(S.damage * p.power), 'spell');
     this._impactBurst(p, at, _n.copy(p.vel).normalize().negate());
+    this.onPlayerHit?.(p);
     this.bus.emit('spell:impact', { strength: 0.35 });
   }
 
@@ -293,6 +300,22 @@ export class SpellSystem {
     }
     if (handler) {
       hitSomething = this._applyToHandler(handler, ev);
+      if (ev.reflect) {
+        // Parried by an enemy shield: the bolt flies back at the player.
+        const head = _v2.copy(this.player.position);
+        head.y += 1.2;
+        p.vel.subVectors(head, point).normalize().multiplyScalar(S.speed * CASTING.shield.reflectBoost);
+        p.owner = handler;
+        p.ignore = new Set([collider.id]);
+        p.pos.copy(point);
+        p.life = S.life;
+        this.glow.burst(18, point, { speed: [1, 4], life: 0.4, size: 0.1, color: '#bfe0ff', shape: SHAPE.spark, dir: normal, spread: 0.9 });
+        return REFLECTED;
+      }
+      if (ev.blocked) {
+        this.glow.burst(14, point, { speed: [1, 3], life: 0.35, size: 0.09, color: '#9ac0ff', shape: SHAPE.spark, dir: normal, spread: 1 });
+        return true;
+      }
     } else if (body) {
       hitSomething = this._applyToBody(body, ev);
     } else {
@@ -301,6 +324,7 @@ export class SpellSystem {
     }
     this._impactBurst(p, point, normal);
     if (hitSomething && p.owner === 'player') this.bus.emit('spell:hit', { id: p.id, owner: p.owner });
+    if (p.owner === 'player') this.bus.emit('spell:landed', { pos: point });
     if (S.damage * p.power >= SPELL_FX.hitStop.threshold) this.bus.emit('spell:impact', { strength: 0.25, hitStop: true });
     return p.bounces <= 0 || hitSomething;
   }
@@ -341,7 +365,7 @@ export class SpellSystem {
     ev.combo = bonus > 1;
     const ok = handler.onSpell(ev);
     const dmg = Math.round((ev.spell.damage ?? 0) * ev.power);
-    if (ok && dmg > 0 && handler.takesDamage) this.bus.emit('spell:damage', { pos: handler.center(new THREE.Vector3()).setY(handler.center(new THREE.Vector3()).y + 0.6), amount: dmg, color: ev.spell.color });
+    if (ok && dmg > 0 && handler.takesDamage && !handler.reportsDamage && !ev.blocked) this.bus.emit('spell:damage', { pos: handler.center(new THREE.Vector3()).setY(handler.center(new THREE.Vector3()).y + 0.6), amount: dmg, color: ev.spell.color });
     return ok;
   }
 

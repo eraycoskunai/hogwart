@@ -364,6 +364,11 @@ export class SpellCaster {
     }
   }
 
+  /** Drop a raised Protego (dodging, being stunned). */
+  cancelShield() {
+    this._shieldOff();
+  }
+
   _shieldOff() {
     if (this.shieldAge < 0) return;
     this.shieldAge = -1;
