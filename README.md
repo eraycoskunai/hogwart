@@ -1,9 +1,9 @@
 # Hogwarts: Mühürlü Kule
 
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
-Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
+Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler, müzik ve sesler tamamen kodla üretilir.
 
-> **Durum: Faz 13 — Arayüz cilası, menüler, harita, kayıt sistemi** (Faz 1–12 tamam)
+> **Durum: Sürüm 1.0 — 14 fazın tamamı bitti**
 
 ## Çalıştırma
 
@@ -443,6 +443,23 @@ sınıf başkanına yakalanırsan binan puan kaybeder.
 - **Cila**: üst üste gelen bildirimler yığın olarak gösterilir, yeni bir odaya/bölgeye girince yer adı başlığı çıkar,
   yükleme ekranında ve açılışta rastgele ipuçları.
 
+## Performans ve denge (Faz 14)
+
+**Performans**
+- **Kare bütçesi**: `core/Profiler` her sistemin CPU süresini (fizik, yapay zekâ, karakter animasyonu ve kumaş, bölge akışı, arayüz, atmosfer, çizim, ses) ölçer; F3 panelindeki *Kare bütçesi* bölümü en pahalı olanları sıralar.
+- **Dinamik çözünürlük** (Ayarlar → Grafik, varsayılan açık): kare süresi uzun süre ~48 FPS'nin altında kalırsa çözünürlük %10'luk adımlarla %60'a kadar iner, ekran tazeleme hızına dönünce geri çıkar. Yükleme ve durum değişimlerinden sonraki ilk saniyeler sayılmaz. Eşikler `data/perf.js` içinde.
+- **FPS göstergesi** (Ayarlar → Grafik): saatin yanında kare hızı.
+- Mini harita saniyede 20 kez çizilir (her kare değil).
+- **Bellek**: iki sızıntı giderildi. (1) İskeletli karakterlerin kemik dokuları bölge değişiminde serbest bırakılmıyordu (her arazi ziyaretinde 9 GPU dokusu). (2) Gölge sistemi (CSM) kurduğu her malzemeyi kendi haritasında tutuyordu; atılan bölgelerin malzemeleri, dokuları ve tuvalleri bellekte kalıyordu (her arazi ↔ şato turunda ~57 MB). Artık 4 turda JS belleği ~307 MB'ta, doku/geometri sayısı sabit kalıyor.
+- Sekme arka plana alınınca oyun kendiliğinden duraklar. WebGL bağlamı kaybolursa (sürücü sıfırlanması, GPU değişimi) oyun duraklar ve bağlam geri gelince devam eder. Beklenmeyen bir çalışma zamanı hatası oyuncuya bir kez bildirilir.
+
+**Denge** — `node tools/balance.mjs` (veya `npm run balance`)
+- Oyunun veri dosyalarını okuyup her zorlukta her düşman için şunları hesaplar: ustalık 1/3/5'te öldürme süresi (odak, bekleme süreleri, büyü yapma animasyonu, sersemletme çubuğu ve bitirici hareket dâhil), oyuncuya gelen hasar/sn, dayanma süresi ve *dövüş payı* (Episkey iyileştirmeleri dâhil harcanabilir can ÷ tüm grubu yenerken alınan hasar). Ayrıca Düello Kulübü sıralaması ve ekonomi (hangi görevden sonra hangi süpürge alınabiliyor).
+- Varsayımlar ve hedef aralıklar `data/balance.js` içinde; bir değer aralık dışındaysa araç 1 koduyla çıkar.
+- Bu faz ayarlananlar: **Morvek Kalgan** hem boss bitirici (%12) hem kalkanla ~225 sn süren, oyuncuyu ~18 sn'de deviren bir dövüştü → can 260, sersemletme 160, isabet 0,8, büyü aralığı 1,8–2,6 sn, kalkan olasılığı 0,25; canı artık zorluğa göre ölçekleniyor (Normal'de ~60 sn). **Nyxara** canı 1500 → 1200 (Normal'de ~160 sn). **Dev örümcek** 70 → 95 can, sersemletme 60 → 110 (ilk iki büyüde bitirici yemiyor).
+
+**Son cila**: sürüm 1.0, açılış ekranında *Hakkında* (emeği geçenler), hikâyenin sonunda jenerik.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
@@ -476,8 +493,8 @@ sayıları, üretim süresi, animasyon katmanları ve IK durumu, asa bilgisi.
 index.html            import map + arayüz kökleri
 src/main.js           başlatma, oyun durum makinesi, sabit adımlı döngü (1/60 fizik, değişken render + interpolasyon)
 src/core/             EventBus, StateMachine, Input (klavye/fare/gamepad + tuş atama), Time (hit-stop),
-                      SaveSystem (6 yuva + 3 dönen otomatik + hızlı, küçük resim, dışa/içe aktarma, sürümlü), Settings, AssetCache (referans sayımı), Debug (F3)
-src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sky/SkyShader, Environment, SceneLighting (CSM),
+                      SaveSystem (6 yuva + 3 dönen otomatik + hızlı, küçük resim, dışa/içe aktarma, sürümlü), Settings, AssetCache (referans sayımı), Debug (F3), Profiler (kare bütçesi)
+src/render/           Renderer (kalite ön ayarları), DynamicResolution, Atmosphere (orkestra), Sky/SkyShader, Environment, SceneLighting (CSM),
                       LightManager, FlameSprites, Weather + WeatherParticles + PrecipitationOccluder, PostFX,
                       ColorGrading, DustMotes, SurfaceShader, TerrainMaterial, LakeMaterial, WindowMaterial,
                       GrassField, ParticleSystem, TrailRibbons, SpellVisuals, Telegraphs, MaterialLibrary, ThirdPersonCamera, CinematicCamera, DebugDraw
@@ -503,7 +520,8 @@ src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, 
 src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, DialogueUI, FriendsPanel, StoryUI, MapView, Minimap, PauseMenu, GalleryPanel, CharacterCreator, styles.css
 src/audio/            AudioEngine (kanallar, yankı, 3B), Synth (tarif → Web Audio), SoundDirector (olay → ses, ortam, adımlar),
                       MusicDirector (üretken, uyarlanır müzik), Voice (sentez konuşma / TTS)
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, sesler, müzik, hikâye, dersler, arayüz, test salonu, arazi, şato, şato içi, bitki örtüsü
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, sesler, müzik, hikâye, dersler, arayüz, performans, denge modeli, test salonu, arazi, şato, şato içi, bitki örtüsü
+tools/balance.mjs     denge raporu (node ile çalışır; oyunun veri dosyalarını okur)
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -524,4 +542,4 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 11. ✅ Ses motoru, SFX, adaptif müzik, konuşma
 12. ✅ Hikâye, görevler, dersler, bina puanları, açılış sekansı
 13. ✅ Arayüz cilası, menüler, harita, kayıt sistemi
-14. Optimizasyon, denge, son cila
+14. ✅ Optimizasyon, denge, son cila

@@ -100,7 +100,12 @@ export class SceneLighting {
     if (!force && this.materials.has(m)) return;
     if (!('_preCsm' in m.userData)) {
       m.userData._preCsm = m.onBeforeCompile;
-      m.addEventListener('dispose', () => this.materials.delete(m));
+      // CSM keeps every set-up material in its own map; drop it there too,
+      // or disposed region materials (and their textures) stay in memory.
+      m.addEventListener('dispose', () => {
+        this.materials.delete(m);
+        this.csm?.shaders.delete(m);
+      });
     }
     const pre = m.userData._preCsm;
     this.csm.setupMaterial(m);
