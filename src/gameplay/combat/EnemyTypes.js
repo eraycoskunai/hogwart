@@ -265,13 +265,14 @@ export class Duelist extends DarkWizard {
       ...ENEMIES.darkWizard,
       name: profile.name,
       health: profile.health,
+      poise: profile.poise ?? ENEMIES.darkWizard.poise,
       castEvery: profile.castEvery,
       range: [5, 11],
       cover: false,
       lowHealthRetreat: 0,
       shield: { ...ENEMIES.darkWizard.shield, cooldown: 4 },
     };
-    super(mgr, pos, { ...o, type: 'duelist', def, name: `${profile.name} (${profile.title})`, seed: profile.seed, faction: 'duel', healthScale: 1, accuracy: profile.accuracy, spells: profile.spells, shieldChance: profile.shield, dodgeChance: profile.dodge, house: o.house });
+    super(mgr, pos, { ...o, type: 'duelist', def, name: `${profile.name} (${profile.title})`, seed: profile.seed, faction: 'duel', healthScale: o.healthScale ?? 1, accuracy: profile.accuracy, spells: profile.spells, shieldChance: profile.shield, dodgeChance: profile.dodge, house: o.house });
     this.profile = profile;
     this.engaged = false;
     this.awareness = 0;

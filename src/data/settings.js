@@ -6,6 +6,10 @@ import { DEFAULT_QUALITY } from './quality.js';
 export const DEFAULT_SETTINGS = Object.freeze({
   quality: DEFAULT_QUALITY,
   renderScale: 1,
+  /** Lower the resolution automatically while the frame rate stays low. */
+  dynamicResolution: true,
+  /** Small frame-rate counter in the corner. */
+  showFps: false,
   fov: 65,
   mouseSensitivity: 1,
   gamepadSensitivity: 1,

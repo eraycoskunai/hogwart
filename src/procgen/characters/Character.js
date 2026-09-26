@@ -528,7 +528,12 @@ export class Character {
 
   _disposeSnapshot(s) {
     for (const g of s.garments) g.dispose();
-    for (const c of s.children) c.removeFromParent();
+    for (const c of s.children) {
+      // A skeleton's bone texture is a GPU resource of its own (recreated on
+      // the next render if the skeleton is still in use).
+      c.traverse((o) => o.isSkinnedMesh && o.skeleton?.dispose());
+      c.removeFromParent();
+    }
     for (const x of s.owned) x.dispose?.();
     for (const m of s.materials) m.dispose();
     for (const k of s.borrowed) this.library?.releaseTextures(k);

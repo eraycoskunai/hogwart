@@ -4,7 +4,7 @@
 
 export const GAME = Object.freeze({
   title: 'Hogwarts: Mühürlü Kule',
-  version: '0.1.0',
+  version: '1.0.0',
   /** Bumped whenever the save layout changes; SaveSystem migrates older saves. */
   saveVersion: 3,
   storagePrefix: 'hogwarts-rpg',

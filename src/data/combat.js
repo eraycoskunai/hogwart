@@ -85,7 +85,7 @@ export const ENEMIES = Object.freeze({
     robe: '#15121a', eyes: '#ff3030',
   },
   spider: {
-    name: 'Dev örümcek', health: 70, poise: 60, speed: [3.5, 7.5], radius: 0.75, height: 0.9, sight: 22, fov: 200, hearing: 16,
+    name: 'Dev örümcek', health: 95, poise: 110, speed: [3.5, 7.5], radius: 0.75, height: 0.9, sight: 22, fov: 200, hearing: 16,
     bite: { range: 2.4, lunge: 6, windup: 0.5, damage: 11, cooldown: 1.6 }, spit: { range: 14, windup: 0.7, cooldown: 5 },
     scale: 1, color: '#1a1512', eyes: '#ff2010',
   },
@@ -142,7 +142,7 @@ export const ENCOUNTERS = Object.freeze({
 
 export const BOSS = Object.freeze({
   spiderQueen: {
-    name: 'Nyxara, Örümceklerin Anası', health: 1500, poise: 600, radius: 1.8, height: 2.6, scale: 2.6, speed: [3, 6.5],
+    name: 'Nyxara, Örümceklerin Anası', health: 1200, poise: 600, radius: 1.8, height: 2.6, scale: 2.6, speed: [3, 6.5],
     color: '#120e0c', eyes: '#ff1a00',
     /** Phase thresholds (share of health). */
     phases: [1, 0.66, 0.33],

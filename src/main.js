@@ -64,7 +64,7 @@ import { MapState } from './gameplay/MapState.js';
 import { MapView } from './ui/MapView.js';
 import { Minimap } from './ui/Minimap.js';
 import { bakeGrounds } from './world/MapBaker.js';
-import { TIPS, SAVES } from './data/ui.js';
+import { TIPS, SAVES, CREDITS } from './data/ui.js';
 import { INTERIOR } from './data/interior.js';
 import { GROUND_TELEPORTS } from './data/grounds.js';
 import { SPELLS } from './data/spells.js';
@@ -84,6 +84,9 @@ import { describeWand, wandStats } from './procgen/characters/WandGenerator.js';
 import { HOUSES } from './data/character.js';
 import { CreatorStage } from './world/CreatorStage.js';
 import { CharacterCreator } from './ui/CharacterCreator.js';
+import { Profiler } from './core/Profiler.js';
+import { REFRESH, AUTO_PAUSE } from './data/perf.js';
+import { DynamicResolution } from './render/DynamicResolution.js';
 
 /** Boot progress-bar ranges for each loading stage. */
 const BOOT_STAGES = Object.freeze({ textures: [0.12, 0.3], region: [0.36, 0.86] });
@@ -121,6 +124,7 @@ class Game {
     /** The created student (appearance, name, house, outfit, wand). */
     this.characterData = sanitizeCharacter(null);
     this.time = new Time(GAME);
+    this.profiler = new Profiler();
     this.cache = new AssetCache();
     this.canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
     this.bootEl = document.getElementById('boot');
@@ -145,6 +149,7 @@ class Game {
     this._progress('Grafik motoru hazırlanıyor…', 0.1);
     await nextFrame();
     this.renderer = new Renderer(this.canvas, this.settings, bus);
+    this.dynamicRes = new DynamicResolution(this.renderer, this.settings, bus);
     const preset = this.renderer.preset;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(this.settings.get('fov'), this.renderer.aspect, CAMERA.near, preset.drawDistance);
@@ -729,10 +734,30 @@ class Game {
     this.canvas.addEventListener('click', () => {
       if (this.fsm.is('play')) this.input.requestPointerLock();
     });
+    // Leaving the tab pauses the game (and the browser stops rAF anyway).
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && AUTO_PAUSE.onHidden && this.fsm.is('play')) this.fsm.change('pause');
+    });
+    // WebGL can be lost (driver reset, GPU switch): wait for the browser to
+    // restore it, paused, instead of failing silently.
+    this.canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      if (this.fsm.is('play')) this.fsm.change('pause');
+      this.hud.showCenter('Grafik bağlamı kayboldu', 'Tarayıcı ekran kartını yeniden başlatıyor; birkaç saniye içinde devam edebilirsin.');
+    });
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      this.hud.hideCenter();
+      this.renderer.resize();
+      this.hud.notice('Grafik bağlamı geri geldi');
+    });
 
     for (const btn of this.bootEl.querySelectorAll('[data-boot]')) {
       btn.addEventListener('click', async () => {
         if (this.regions.loading) return;
+        if (btn.dataset.boot === 'credits') {
+          this._toggleBootCredits();
+          return;
+        }
         if (btn.dataset.boot === 'gallery') {
           this.fsm.change('gallery');
           return;
@@ -1022,6 +1047,21 @@ class Game {
   }
 
   /** Back to the title screen (after an autosave). */
+  /** Title screen: swap the controls hint for the credits and back. */
+  _toggleBootCredits() {
+    const card = this.bootEl.querySelector('.boot-card');
+    let el = card.querySelector('.boot-credits');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'boot-credits';
+      el.innerHTML = `<h3>${CREDITS.title}</h3>${CREDITS.lines.map((l) => `<p>${l}</p>`).join('')}<p class="sig">${CREDITS.signature.replace('{version}', GAME.version)}</p>`;
+      card.appendChild(el);
+    }
+    const open = !card.classList.contains('credits');
+    card.classList.toggle('credits', open);
+    this.bootEl.querySelector('[data-boot="credits"]').textContent = open ? 'Geri' : 'Hakkında';
+  }
+
   _toMainMenu() {
     this.pauseMenu.close();
     this.fsm.change('play');
@@ -1224,10 +1264,11 @@ class Game {
             Üçgen: r.triangles.toLocaleString('tr-TR'),
             'Geometri / doku': `${r.geometries} / ${r.textures}`,
             Shader: r.programs,
-            'Piksel oranı': fmt(r.pixelRatio),
+            'Piksel oranı': `${fmt(r.pixelRatio)}${this.dynamicRes.scale < 1 ? ` (dinamik ×${fmt(this.dynamicRes.scale)})` : ''}`,
             Bellek: mem ? `${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'desteklenmiyor',
             Kalite: QUALITY_PRESETS[this.renderer.quality].label,
           },
+          'Kare bütçesi (CPU ms)': Object.fromEntries(this.profiler.top().map(([k, v]) => [k, fmt(v, 2)])),
           Bölge: { Ad: this.room.name, ...(this.room.stats ?? {}) },
           'Zaman ve hava': this.atmosphere.stats,
           Karakter: this._characterStats(),
@@ -1471,12 +1512,15 @@ class Game {
     this.fsm.update(time.unscaledDt);
 
     const simulate = this.fsm.is('play') || this.fsm.is('cinematic');
+    const prof = this.profiler;
     if (simulate) {
       let steps = 0;
+      prof.begin('Sabit adım (toplam)');
       while (time.consumeStep(steps)) {
         this.fixedUpdate(time.fixedStep);
         steps++;
       }
+      prof.end('Sabit adım (toplam)');
     } else {
       time.accumulator = Math.max(0, time.accumulator - time.dt);
     }
@@ -1490,13 +1534,27 @@ class Game {
     } else if (!this.fsm.is('loading')) {
       // Game time runs everywhere except in menus.
       const gameHours = this.fsm.is('pause') ? 0 : this.clock.update(time.dt);
+      prof.begin('Kare güncelleme (toplam)');
       this.lateUpdate(time.unscaledDt, alpha);
+      prof.end('Kare güncelleme (toplam)');
+      prof.begin('Atmosfer');
       this.atmosphere.update(time.unscaledDt, gameHours, _focus.copy(this.player.visualPosition).setY(this.player.visualPosition.y + 1.5));
-      this.hud.setClock(`${this.clock.format()} · ${this.atmosphere.weather.label}`);
+      this._fpsT = (this._fpsT ?? 0) - time.unscaledDt;
+      if (this._fpsT <= 0) {
+        this._fpsT = REFRESH.fpsCounter;
+        this._fpsText = this.settings.get('showFps') ? ` · ${Math.round(time.fps)} FPS` : '';
+      }
+      this.hud.setClock(`${this.clock.format()} · ${this.atmosphere.weather.label}${this._fpsText}`);
+      prof.end('Atmosfer');
+      prof.begin('Çizim (CPU)');
       this.atmosphere.render();
+      prof.end('Çizim (CPU)');
+      this.dynamicRes.update(time.unscaledDt, time.frameMs, this.fsm.is('play'));
       if (this._thumbReqs?.length) this._captureThumb();
     }
+    prof.begin('Ses');
     this.sound?.update(time.unscaledDt, this.camera);
+    prof.end('Ses');
     this.debug.update(time.unscaledDt * 1000, time.unscaledDt);
     this.input.endFrame();
   }
@@ -1513,15 +1571,24 @@ class Game {
       player.faceYaw = Math.atan2(-_v.x, -_v.z);
     } else player.faceYaw = null;
 
+    const prof = this.profiler;
     player.fixedUpdate(dt);
     const c = player.controller;
     this.physics.syncPlayerProxy(c.position, c.velocity, c.radius, c.height);
+    prof.begin('Fizik');
     this.physics.step(dt);
+    prof.end('Fizik');
+    prof.begin('Büyüler');
     this.spells.fixedUpdate(dt);
+    prof.end('Büyüler');
+    prof.begin('Savaş / yapay zekâ');
     this.combat.fixedUpdate(dt);
     this.duel?.fixedUpdate(dt);
+    prof.end('Savaş / yapay zekâ');
     this.races.fixedUpdate(dt);
+    prof.begin('Dostlar');
     this.social.fixedUpdate(dt);
+    prof.end('Dostlar');
     this.lessons.fixedUpdate(dt);
     this.quests.update(dt);
     this._discoverT = (this._discoverT ?? 0) - dt;
@@ -1557,9 +1624,12 @@ class Game {
     _wind.set(w.x, 0, w.y);
     if (!this.fsm.is('boot')) this._updateViewTargets();
     const clothWind = this.flight.active ? this.flight.clothWind(_v).add(_wind) : _wind;
+    const prof = this.profiler;
+    prof.begin('Karakterler (animasyon, kumaş)');
     player.render(dt, alpha, this.fsm.is('boot') ? 10 : this.cameraRig.distance, { camera: this.camera, wind: clothWind });
     _head.copy(player.visualPosition).setY(player.visualPosition.y + player.character.height * 0.93);
     this.room.updateCharacters(dt, { camera: this.camera, player: player.visualPosition, playerHead: _head, wind: _wind });
+    prof.end('Karakterler (animasyon, kumaş)');
     this.physics.syncVisuals(alpha);
     if (this.skeletonHelper) this.skeletonHelper.visible = this.toggles.skeleton;
 
@@ -1571,13 +1641,20 @@ class Game {
 
     if (this.fsm.is('play') || this.fsm.is('cinematic')) this.caster.update(dt);
     const env = { camera: this.camera, wind: _wind, playerHead: _head };
+    prof.begin('Düşman / dost görselleri');
     this.combat.frame(dt, env);
     this.duel?.render(dt, env);
     this.races.frame(dt);
     this.social.render(dt, env);
     this.lessons.render(dt, env);
+    prof.end('Düşman / dost görselleri');
+    prof.begin('Arayüz');
     this._placeBanner();
-    this.minimap.update({ region: this.room.id, player: { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw }, quest: this.quests.tracker, friends: this._friendsNearby(), hidden: !this.fsm.is('play') });
+    this._minimapT = (this._minimapT ?? 0) - dt;
+    if (this._minimapT <= 0) {
+      this._minimapT = REFRESH.minimap;
+      this.minimap.update({ region: this.room.id, player: { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw }, quest: this.quests.tracker, friends: this._friendsNearby(), hidden: !this.fsm.is('play') });
+    }
     this.storyUi.update(dt, {
       tracker: this.settings.get('showTracker') ? this.quests.tracker : null, lesson: this.lessons.hud, journal: this.quests.journal, standings: this.housePoints.standings,
       camera: this.camera, width: this.renderer.width, height: this.renderer.height, player, region: this.room.id, hidden: !this.fsm.is('play'),
@@ -1586,10 +1663,15 @@ class Game {
     this.friendsPanel.update(dt, () => this.social.summary);
     this.match?.frame(dt);
     this.shop?.render(dt, { ...env, player: player.visualPosition });
+    prof.end('Arayüz');
+    prof.begin('Büyü efektleri');
     this.spells.update(dt, this.camera);
+    prof.end('Büyü efektleri');
     this.spellHud.update(dt, this.caster);
+    prof.begin('Bölge (akış, bitki, LOD)');
     this.room.render(this.time.elapsed, this.atmosphere.night, alpha);
     this.room.frame(dt, this.camera, { night: this.atmosphere.night, hour: this.clock.hour, wind: this.atmosphere.weather.wind, player: player.visualPosition, playerHead: _head });
+    prof.end('Bölge (akış, bitki, LOD)');
     this.debugDraw.update(player.controller, player.visualPosition);
     this.flightHud.update(dt, { flight: this.flight, race: this.races.hud, match: this.match?.hud ?? null, camera: this.camera, width: this.renderer.width, height: this.renderer.height, player });
     this.combatHud.update(dt, {
@@ -1625,5 +1707,15 @@ function showFatal(err) {
 
 const game = new Game();
 game.init().catch(showFatal);
+// A runtime error in one system should not go unnoticed: tell the player
+// once (the game keeps running; autosaves protect progress).
+let _errorShown = false;
+const onRuntimeError = () => {
+  if (_errorShown || !game.hud) return;
+  _errorShown = true;
+  game.hud.notice('Beklenmeyen bir hata oluştu; oyun devam ediyor. Sorun sürerse son kaydı yükle.');
+};
+window.addEventListener('error', onRuntimeError);
+window.addEventListener('unhandledrejection', onRuntimeError);
 // Exposed for console debugging only.
 window.__game = game;

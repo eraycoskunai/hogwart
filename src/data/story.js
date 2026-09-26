@@ -45,7 +45,7 @@ export const OPENING = Object.freeze({
 
 export const VILLAIN = Object.freeze({
   name: 'Morvek Kalgan', title: 'Mühür Kırıcı', seed: 66601,
-  health: 420, accuracy: 0.9, castEvery: [1, 1.6], shield: 0.6, dodge: 0.5,
+  health: 260, poise: 160, accuracy: 0.8, castEvery: [1.8, 2.6], shield: 0.25, dodge: 0.5,
   spells: [['darkCurse', 0.4], ['darkStun', 0.3], ['darkFire', 0.3]],
   /** Arena: the Room of Requirement in its sealed form. */
   arena: { minX: 22.6, maxX: 35.4, minZ: -31, maxZ: -23, y: 21 },

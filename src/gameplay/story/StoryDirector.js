@@ -12,6 +12,8 @@
  */
 import * as THREE from 'three';
 import { LETTER, OPENING, VILLAIN, ENDING, HOUSE_CUP } from '../../data/story.js';
+import { CREDITS } from '../../data/ui.js';
+import { GAME } from '../../data/game.js';
 import { HOUSES } from '../../data/character.js';
 import { Duelist } from '../combat/EnemyTypes.js';
 
@@ -69,7 +71,7 @@ export class StoryDirector {
     const G = this.o.game;
     const V = VILLAIN;
     const [x, y, z, yaw] = V.spawn;
-    const e = new Duelist(G.combat, new THREE.Vector3(x, y, z), { name: V.name, title: V.title, seed: V.seed, health: V.health, accuracy: V.accuracy, castEvery: V.castEvery, shield: V.shield, dodge: V.dodge, spells: V.spells }, { bounds: V.arena, yaw });
+    const e = new Duelist(G.combat, new THREE.Vector3(x, y, z), { name: V.name, title: V.title, seed: V.seed, health: V.health, accuracy: V.accuracy, castEvery: V.castEvery, shield: V.shield, dodge: V.dodge, spells: V.spells, poise: V.poise }, { bounds: V.arena, yaw, healthScale: G.combat.difficulty.health });
     e.name = `${V.name}, ${V.title}`;
     e.faction = 'dark';
     e.yaw = yaw;
@@ -102,7 +104,8 @@ export class StoryDirector {
     const lines = [...ENDING.lines.map((l) => this._fill(l)), ENDING.cup, ...standings.map((s, i) => `${i + 1}. ${s.label} — ${s.points} puan${s.mine ? ' (senin binan)' : ''}`), cup.mine ? `Bina Kupası ${cup.label}\'ın! Salon alkıştan inliyor.` : `Bina Kupası bu yıl ${cup.label}\'ın. Gelecek yıl sıra sizde!`];
     this.bus.emit('story:ending', { cup: cup.id });
     G.fsm.change('letter');
-    await this.o.parchment.show({ title: 'Son', lines, signature: 'Hogwarts: Mühürlü Kule', button: 'Oyuna devam et' });
+    await this.o.parchment.show({ title: 'Son', lines, signature: 'Hogwarts: Mühürlü Kule', button: 'Devam' });
+    await this.o.parchment.show({ title: CREDITS.title, lines: CREDITS.lines, signature: CREDITS.signature.replace('{version}', GAME.version), button: 'Oyuna devam et' });
     if (G.fsm.is('letter')) G.fsm.change('play');
   }
 

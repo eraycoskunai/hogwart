@@ -122,6 +122,12 @@ button.primary {
 #loading.show { opacity: 1; pointer-events: auto; }
 .loading-title { margin: 0 0 14px; font-size: 20px; font-variant: small-caps; letter-spacing: 0.05em; }
 .boot-hint { font-size: 12px; color: var(--ink-soft); line-height: 1.6; margin: 8px 0 0; }
+.boot-credits { display: none; text-align: left; font-size: 13px; line-height: 1.55; color: var(--ink); }
+.boot-credits h3 { margin: 6px 0 8px; text-align: center; font-variant: small-caps; letter-spacing: 0.06em; }
+.boot-credits p { margin: 0 0 8px; }
+.boot-credits .sig { text-align: right; font-style: italic; color: var(--ink-soft); }
+.boot-card.credits .boot-credits { display: block; }
+.boot-card.credits .boot-hint, .boot-card.credits .boot-tip { display: none; }
 
 /* ----------------------------------------------------------------- hud */
 

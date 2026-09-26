@@ -78,13 +78,15 @@ export function disposeResource(res) {
 }
 
 /**
- * Recursively dispose an object tree's geometries and materials and detach it.
+ * Recursively dispose an object tree's geometries, materials and skeleton
+ * bone textures and detach it.
  * Resources flagged with `userData.shared = true` are skipped (owned by a cache).
  * @param {import('three').Object3D} root
  */
 export function disposeObject3D(root) {
   root.traverse((obj) => {
     if (obj.geometry && !obj.geometry.userData?.shared) obj.geometry.dispose();
+    if (obj.isSkinnedMesh) obj.skeleton?.dispose();
     const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : [];
     for (const m of mats) if (!m.userData?.shared) disposeResource(m);
   });

@@ -192,6 +192,8 @@ export class PauseMenu {
     return `
       <label class="row">Kalite <select data-setting="quality">${q}</select></label>
       <label class="row">Çözünürlük ölçeği <select data-setting="renderScale" data-type="number">${rs}</select></label>
+      <label class="row">Dinamik çözünürlük <small>(FPS düşünce çözünürlüğü geçici olarak azaltır)</small> <input type="checkbox" data-setting="dynamicResolution" ${s.dynamicResolution ? 'checked' : ''}></label>
+      <label class="row">FPS göstergesi <input type="checkbox" data-setting="showFps" ${s.showFps ? 'checked' : ''}></label>
       <label class="row">Görüş alanı (FOV) <span><input type="range" data-setting="fov" data-type="number" min="${f.min}" max="${f.max}" step="${f.step}" value="${s.fov}"><output>${s.fov}°</output></span></label>
       <h3>Efektler <small>(kalite ayarı izin veriyorsa)</small></h3>
       ${FX_LABELS.map(([k, label]) => `<label class="row">${label} <input type="checkbox" data-fx="${k}" ${s.fx?.[k] !== false ? 'checked' : ''}></label>`).join('')}

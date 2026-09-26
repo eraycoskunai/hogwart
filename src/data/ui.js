@@ -62,3 +62,16 @@ export const SAVES = Object.freeze({
 export const UI_SCALES = Object.freeze([0.85, 1, 1.15, 1.3]);
 
 export const NOTICES = Object.freeze({ max: 4, duration: 3.2 });
+
+/** "Emeği geçenler": shown from the title screen and after the ending. */
+export const CREDITS = Object.freeze({
+  title: 'Emeği geçenler',
+  lines: [
+    'Hogwarts: Mühürlü Kule — kişisel kullanım için yapılmış, ticari olmayan bir hayran oyunu.',
+    'Harry Potter evreni, adları ve mekânları J.K. Rowling ile hak sahiplerine aittir; bu oyun onlarla bağlantılı değildir.',
+    'Her şey tarayıcıda, çalışırken üretilir: dokular, modeller, karakterler, animasyonlar, müzik, sesler ve konuşmalar. Dışarıdan tek bir görsel ya da ses dosyası yoktur.',
+    'Motor: Three.js (3B çizim) ve cannon-es (fizik). Ses: Web Audio API.',
+    'Oynadığın için teşekkürler!',
+  ],
+  signature: 'Sürüm {version}',
+});

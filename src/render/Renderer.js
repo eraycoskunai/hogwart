@@ -35,6 +35,8 @@ export class Renderer {
 
     this.width = 1;
     this.height = 1;
+    /** Multiplier from DynamicResolution (1 = off / full). */
+    this.dynamicScale = 1;
     this.applyQuality(this.quality);
 
     this._onResize = () => this.resize();
@@ -63,7 +65,7 @@ export class Renderer {
   resize() {
     const w = Math.max(1, window.innerWidth);
     const h = Math.max(1, window.innerHeight);
-    const ratio = Math.min(window.devicePixelRatio || 1, this.preset.pixelRatioMax) * this.settings.get('renderScale');
+    const ratio = Math.min(window.devicePixelRatio || 1, this.preset.pixelRatioMax) * this.settings.get('renderScale') * this.dynamicScale;
     this.renderer.setPixelRatio(Math.max(0.25, ratio));
     this.renderer.setSize(w, h, false);
     this.canvas.style.width = `${w}px`;
@@ -71,6 +73,13 @@ export class Renderer {
     this.width = w;
     this.height = h;
     this.bus.emit('render:resize', { width: w, height: h });
+  }
+
+  /** Change the dynamic resolution multiplier (re-sizes the targets). */
+  setDynamicScale(s) {
+    if (Math.abs(s - this.dynamicScale) < 1e-3) return;
+    this.dynamicScale = s;
+    this.resize();
   }
 
   get aspect() {
@@ -85,12 +94,12 @@ export class Renderer {
     this.renderer.render(scene, camera);
   }
 
-  /** Renderer statistics for the debug panel. */
   /** Start counting draw calls / triangles for a new frame. */
   beginFrame() {
     this.renderer.info.reset();
   }
 
+  /** Renderer statistics for the debug panel. */
   get stats() {
     const i = this.renderer.info;
     return {
