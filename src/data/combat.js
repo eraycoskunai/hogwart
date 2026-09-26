@@ -45,7 +45,7 @@ export const PERCEPTION = Object.freeze({
   forget: 7,
   searchTime: 6,
   /** Allies within this radius are alerted when one spots the player. */
-  helpRadius: 26,
+  helpRadius: 45,
   /** Noises (impacts, casts) heard within hearing range × loudness. */
   castLoudness: 0.6,
   impactLoudness: 1,
