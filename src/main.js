@@ -44,6 +44,11 @@ import { RaceManager } from './gameplay/flight/RaceManager.js';
 import { QuidditchMatch } from './gameplay/flight/QuidditchMatch.js';
 import { FlightHUD } from './ui/FlightHUD.js';
 import { ECONOMY, BROOMS } from './data/flight.js';
+import { Relationships } from './gameplay/social/Relationships.js';
+import { SocialManager } from './gameplay/social/SocialManager.js';
+import { DialogueUI } from './ui/DialogueUI.js';
+import { FriendsPanel } from './ui/FriendsPanel.js';
+import { COMPANIONS } from './data/companions.js';
 import { COMBAT, BOSS } from './data/combat.js';
 import { SPELL_WHEEL, MASTERY } from './data/spells.js';
 import { describeCode } from './data/input.js';
@@ -197,6 +202,17 @@ class Game {
     this.races = new RaceManager({ bus, player: this.player, flight: this.flight, inventory: this.inventory, physics: this.physics, scene: this.scene, interactions: this.interactions, particles, cameraRig: this.cameraRig });
     this.shop = null;
     this.match = null;
+    // Companions and conversations.
+    this.relationships = new Relationships(bus);
+    this.dialogueUi = new DialogueUI(document.getElementById('hud'));
+    this.friendsPanel = new FriendsPanel(document.getElementById('hud'));
+    this.social = new SocialManager({
+      bus, clock: this.clock, relationships: this.relationships, inventory: this.inventory, player: this.player, physics: this.physics, scene: this.scene,
+      library: this.library, preset, spells: this.spells, combat: this.combat, interactions: this.interactions, dialogue: this.dialogueUi, worldState: this.worldState,
+      begin: (c) => this._beginDialogue(c), end: () => this._endDialogue(),
+      ui: { say: (n, t) => this.hud?.say(n, t), notice: (t) => this.hud?.notice(t), toast: (t, d) => this.hud?.toast(t, d) },
+      playerName: () => this.characterData.firstName, camera: this.camera,
+    });
     this._enterCombatRegion();
 
     this._progress('Arayüz yükleniyor…', 0.9);
@@ -268,6 +284,19 @@ class Game {
           const a = g._menuAngle;
           g.camera.position.set(o.center[0] + Math.sin(a) * o.radius, o.center[1] + o.height, o.center[2] + Math.cos(a) * o.radius);
           g.camera.lookAt(_v.fromArray(o.look));
+        },
+      },
+      dialogue: {
+        enter: (g) => {
+          g.input.gameplayEnabled = false;
+          g.input.clearAll();
+          g.input.exitPointerLock();
+          g.hud.prompt('');
+          g._promptLabel = null;
+        },
+        update: (g) => {
+          // The conversation UI handles its own keys; H still shows help.
+          if (!g.dialogueUi.isOpen) g.fsm.change('play');
         },
       },
       choice: {
@@ -410,6 +439,7 @@ class Game {
     const lockTargets = this._lockTargets();
     if (input.pressed('lockOn') && !this.player.dead) this.cameraRig.toggleLock(lockTargets, this.player.position);
     if (input.pressed('broom')) this.flight.toggle();
+    if (input.pressed('friends')) this.friendsPanel.toggle();
     if (input.pressed('dodge')) {
       if (this.flight.active) this.flight.roll(Math.sign(this.player.intent.axis.x));
       else this._dodge();
@@ -459,6 +489,25 @@ class Game {
     }
   }
 
+  /** Start a conversation: face each other, frame the shot, pause play. */
+  _beginDialogue(c) {
+    if (!this.fsm.is('play') || this.flight.active || this.player.dead) return false;
+    const p = this.player;
+    _to.subVectors(c.position, p.position);
+    const yaw = Math.atan2(-_to.x, -_to.z);
+    p.yaw = yaw;
+    c.yaw = yaw + Math.PI;
+    this.cameraRig.releaseLock();
+    this.cameraRig.yaw = yaw + 0.42;
+    this.cameraRig.pitch = -0.08;
+    this.fsm.change('dialogue');
+    return true;
+  }
+
+  _endDialogue() {
+    if (this.fsm.is('dialogue')) this.fsm.change('play');
+  }
+
   /** Hook the combat systems to the freshly loaded region. */
   _enterCombatRegion() {
     const room = this.room;
@@ -469,6 +518,7 @@ class Game {
     // Flight: allowed outdoors; the shop and the pitch live on the grounds.
     this.flight.allowed = !!room.allowFlight;
     this.races.setRegion(room);
+    this.social.setRegion(room);
     if (room.id === 'grounds') {
       const heightAt = (x, z) => room.heightAt(x, z);
       this.shop = new BroomShop({
@@ -486,6 +536,8 @@ class Game {
     this.duel?.dispose();
     this.duel = null;
     this.flight.reset();
+    this.dialogueUi.close();
+    this.social.clear();
     this.races.clear();
     this.shop?.dispose();
     this.shop = null;
@@ -684,6 +736,8 @@ class Game {
     if (this._creatorMode === 'new') {
       this.playtime = 0;
       this.inventory.reset();
+      this.relationships.reset();
+      this.social.setRegion(this.room);
       this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
       this.cameraRig.snapTo(this.room.spawn.position, this.room.spawn.yaw);
     }
@@ -735,6 +789,7 @@ class Game {
       player: this.player.serialize(),
       spells: this.caster.serialize(),
       inventory: this.inventory.serialize(),
+      social: this.relationships.serialize(),
       camera: { yaw: this.cameraRig.yaw, pitch: this.cameraRig.pitch },
     };
   }
@@ -776,6 +831,8 @@ class Game {
     this.caster.deserialize(d.spells);
     this.flight.reset();
     this.inventory.deserialize(d.inventory);
+    this.relationships.deserialize(d.social);
+    this.social.setRegion(this.room);
     this.room.onTeleport(this.player.position);
     this.clock.deserialize(d.clock);
     this.atmosphere.weather.deserialize(d.weather);
@@ -793,7 +850,7 @@ class Game {
       teleports: this.room.teleports,
       regions: RegionManager.list(),
       getToggles: () => ({ ...this.toggles }),
-      getEntities: () => [...(this.room.debugEntities ?? []), ...this.combat.debugEntities],
+      getEntities: () => [...(this.room.debugEntities ?? []), ...this.combat.debugEntities, ...this.social.debugEntities],
       getSections: () => {
         const r = this.renderer.stats;
         const p = this.physics.stats;
@@ -830,6 +887,7 @@ class Game {
             'Dinamik (uyanık)': `${p.dynamics} (${p.awake})`,
             Kinematik: p.kinematics,
           },
+          Dostlar: { ...this.social.stats, Saat: this.clock.format() },
           Uçuş: { ...this.flight.stats, ...this.races.stats, ...(this.match?.stats ?? {}), Kese: `${this.inventory.galleons} Galleon · süpürgeler: ${this.inventory.brooms.map((b) => BROOMS[b].name).join(', ')}` },
           Savaş: { Zorluk: this.settings.get('difficulty'), ...this.combat.stats, ...(this.duel?.stats ?? {}), 'Oyuncu durumu': `sersem ${fmt(this.player.stunned, 1)} · yavaş ${fmt(this.player.slowed, 1)} · kaçınma ${fmt(this.player.dodging, 2)}` },
           Büyüler: { ...this.caster.stats, 'Mermi / kırık / buz': `${this.spells.stats.projectiles} / ${this.spells.stats.broken} / ${this.spells.stats.floes}`, 'Partikül (toplam)': this.spells.stats.emitted },
@@ -870,6 +928,15 @@ class Game {
           this.combat.spawnEnemy(type, at, zone);
         },
         broom: () => this.flight.toggle(),
+        summon: (id) => this.social.summon(id),
+        friendship: () => {
+          for (const id of Object.keys(COMPANIONS)) this.relationships.add(id, 20);
+        },
+        stopFollow: () => {
+          this.relationships.following = null;
+          this.social.setRegion(this.room);
+        },
+        friends: () => this.friendsPanel.toggle(),
         allBrooms: () => {
           for (const id of Object.keys(BROOMS)) if (!this.inventory.owns(id)) this.inventory.brooms.push(id);
           this.inventory.equip(Object.keys(BROOMS).at(-1));
@@ -1063,6 +1130,7 @@ class Game {
     this.combat.fixedUpdate(dt);
     this.duel?.fixedUpdate(dt);
     this.races.fixedUpdate(dt);
+    this.social.fixedUpdate(dt);
     this.match?.fixedUpdate(dt);
     this.triggers.update(c.position, c.height, c.radius);
     if (c.swimming && !this._deepWarned && this.room.waterDepth(c.position.x, c.position.z) > LAKE.deepWarning) {
@@ -1107,6 +1175,9 @@ class Game {
     this.combat.frame(dt, env);
     this.duel?.render(dt, env);
     this.races.frame(dt);
+    this.social.render(dt, env);
+    this.dialogueUi.update(dt);
+    this.friendsPanel.update(dt, () => this.social.summary);
     this.match?.frame(dt);
     this.shop?.render(dt, { ...env, player: player.visualPosition });
     this.spells.update(dt, this.camera);

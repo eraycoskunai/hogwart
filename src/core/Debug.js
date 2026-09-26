@@ -8,6 +8,7 @@ import { EXPRESSIONS, HOUSES } from '../data/character.js';
 import { SPELLS, SPELL_WHEEL } from '../data/spells.js';
 import { ENEMIES } from '../data/combat.js';
 import { RACES } from '../data/flight.js';
+import { COMPANIONS } from '../data/companions.js';
 
 /** Animation test buttons: [clip, label, looping toggle]. */
 const ANIM_BUTTONS = Object.freeze([
@@ -89,6 +90,10 @@ export class Debug {
         <div class="dbg-buttons">${SPELL_WHEEL.map((k) => `<button data-dbg-spell="${k}">${SPELLS[k].name.split(' ')[0]}</button>`).join('')}</div>
         <div class="dbg-buttons"><button data-dbg-act="masterAll">Tümünde usta ol</button><button data-dbg-act="clearSpells">Efektleri temizle</button></div>
       </div>
+      <div class="dbg-section"><h4>Dostlar</h4>
+        <div class="dbg-buttons">${Object.entries(COMPANIONS).map(([k, c]) => `<button data-dbg-summon="${k}">${c.first}: çağır</button>`).join('')}</div>
+        <div class="dbg-buttons"><button data-dbg-act="friendship">Herkese +20 yakınlık</button><button data-dbg-act="stopFollow">Takibi bitir</button><button data-dbg-act="friends">Dostlar listesi</button></div>
+      </div>
       <div class="dbg-section"><h4>Uçuş</h4>
         <div class="dbg-buttons"><button data-dbg-act="broom">Süpürgeye bin / in</button><button data-dbg-act="allBrooms">Tüm süpürgeler</button><button data-dbg-act="nextBroom">Sonraki süpürge</button><button data-dbg-act="galleons">+100 Galleon</button></div>
         <div class="dbg-buttons">${RACES.map((r) => `<button data-dbg-race="${r.id}">Yarış: ${r.name}</button>`).join('')}</div>
@@ -123,6 +128,7 @@ export class Debug {
       else if (b.dataset.dbgAct) this.p.actions[b.dataset.dbgAct]?.();
       else if (b.dataset.dbgEnemy) this.p.actions.enemy(b.dataset.dbgEnemy);
       else if (b.dataset.dbgRace) this.p.actions.race(b.dataset.dbgRace);
+      else if (b.dataset.dbgSummon) this.p.actions.summon(b.dataset.dbgSummon);
       else if (b.dataset.dbgAnim) this.p.actions.anim(b.dataset.dbgAnim, b.dataset.dbgLoop === '1');
       else if (b.dataset.dbgExpr) this.p.actions.expression(b.dataset.dbgExpr);
       else if (b.dataset.dbgHouse) this.p.actions.house(b.dataset.dbgHouse);

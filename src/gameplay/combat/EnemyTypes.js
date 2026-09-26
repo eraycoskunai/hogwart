@@ -165,7 +165,7 @@ export class DarkWizard extends Enemy {
     this._coverCd -= dt;
     if (!this.engaged || this.disabled) return;
     for (const p of this.mgr.spells.projectiles) {
-      if (p.owner !== 'player' || this._reacted.has(p)) continue;
+      if ((p.owner !== 'player' && p.owner !== 'ally') || this._reacted.has(p)) continue;
       const to = _v.subVectors(this.position, p.pos);
       const d = to.length();
       if (d > 12) continue;

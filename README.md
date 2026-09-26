@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 9 — Süpürge dükkânı, uçuş, yarışlar, Quidditch** (Faz 1–8 tamam)
+> **Durum: Faz 10 — Dostlar, diyalog, yakınlık, NPC rutinleri** (Faz 1–9 tamam)
 
 ## Çalıştırma
 
@@ -38,6 +38,7 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 | Jestle büyü çiz (basılı tut, fareyle çiz) | G / Fare 5 | RB |
 | Kaçın (yuvarlan, kısa dokunulmazlık) / süpürgede takla | F / Sol Alt | D-pad aşağı |
 | Süpürgeye bin / in (havadayken atlarsın!) | B | D-pad yukarı |
+| Dostlar listesi | J | — |
 | Hızlı kayıt / yükleme | F5 / F9 | — |
 | Kontrol listesi | H | Back |
 | Menü | Esc / P | Start |
@@ -320,6 +321,36 @@ Bludger'ları rakiplere — ve sana — vurur (F taklasıyla kaçın). Bir süre
 yakınlaşınca kaçar, ani atılışlar yapar; görüş alanındaysa ekranda işaretlenir. Rakip Arayıcı onu fark edince peşine düşer
 (hızı ve tepkisi zorluğa bağlı). Altın Top'u yakalayan 150 puan kazanır ve maç biter.
 
+## Dostlar ve diyalog (Faz 10)
+
+Dört özgün sınıf arkadaşı var; her birinin kişiliği, günlük rutini, sevdiği ve sevmediği hediyeler ve bir ricası var:
+
+| Dost | Bina | Kişilik | Savaşta |
+|---|---|---|---|
+| Elif Karayel | Gryffindor | Cesur, aceleci, uçmaya bayılır | Stupefy, Expelliarmus, Depulso |
+| Deniz Aksoylu | Ravenclaw | Meraklı, dalgın, kitap kurdu | Glacius, Petrificus, Stupefy |
+| Mert Yıldıztepe | Hufflepuff | Sıcakkanlı, sakar, bitki sever | Seni iyileştirir (Episkey), Depulso |
+| Nehir Ayazoğlu | Slytherin | Hırslı, keskin dilli, sadık | Confringo, Incendio, Stupefy |
+
+- **Rutinler** (oyun saatine göre): 07–09 Büyük Salon'da kahvaltı (oturur), 09–12 derste (Tılsım, KSKS, İksir — büyü
+  çalışırlar), 12–14 öğle yemeği, 14–18 öğleden sonra kendi yerlerinde (Elif Quidditch sahasında, Deniz kütüphanede, Mert
+  kulübenin bahçesinde, Nehir doğu avlusunda), 18–20 akşam yemeği, 20–22.30 akşam (Düello Kulübü, kütüphane rafları, giriş
+  holü), gece yatakhanede uyurlar. Yakın yerler arasında yürürler; uzağa ya da başka kata giderken sen bakmıyorken ayrılıp
+  yeni yerlerinde belirirler. **J** ile açılan *Dostlar* listesi herkesin şu an nerede olduğunu ve ne zamana kadar kalacağını
+  gösterir.
+- **Konuşma** (yanlarında E): yakınlık düzeyine göre selamlama, bulunduğu yere göre bir söz, sonra menü — *kendinden bahset*
+  (dört kişisel konu, düzey arttıkça açılır; verdiğin cevap kişiliğine uyarsa yakınlık artar, ters düşerse azalır), *okulda
+  neler oluyor* (dünyadaki sırlara dair ipuçları), *hediye* (yerinde satın alırsın; günde bir; sevdiği hediye +10, sevmediği
+  −4), *benimle gelir misin / burada ayrılalım*, düzey yeterince yüksekse *rica*. Yazı daktilo gibi akar; Boşluk/tık devam,
+  1–9 seçim, Esc ayrılır. Konuşurken karakter dudaklarıyla konuşur, kamera ikinizi çerçeveler, oyun duraklar.
+- **Yakınlık**: 0–100; Yabancı → Tanıdık (15) → Arkadaş (35) → Yakın dost (60) → Can dostu (85). Günün ilk sohbeti +3.
+  Arkadaş olunca yanına alabilirsin, Yakın dost olunca ricasını söyler.
+- **Yanında gelen dost** seni yürüyerek/koşarak izler, kapılar ve merdivenlerde geride kalırsa arkanda belirir, bölge
+  değiştirince seninle gelir, uçarken yerde bekler, savaşta kendi büyüleriyle yanında dövüşür (büyüleri sana çarpmaz);
+  Mert canın azalınca seni iyileştirir. Gece yatma saati gelince yatakhaneye döner.
+- **Ricalar**: Elif — bir yarışta altın madalya; Deniz — Yasak Bölüm'ün iki zırhını alt et; Mert — Düello Kulübü'nde
+  üçüncü rakibe yüksel; Nehir — bir Quidditch maçı kazan. Tamamlayınca haber ver: +20 yakınlık ve Galleon ödülü.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
@@ -332,6 +363,8 @@ oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; 
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 **Büyüler** bölümü: büyüyü seçme düğmeleri, sınırsız odak anahtarı, tüm büyülerde usta olma, efektleri temizleme; odak,
 mermi, kırık nesne, buz tabakası ve partikül istatistikleri.
+**Dostlar** bölümü: her dostu önüne çağırma, herkese +20 yakınlık, takibi bitirme, dostlar listesi; dostların durumu
+(yerde/yürüyor/takipte), yakınlık değerleri, saat; varlıklar listesinde her dostun rutin yeri.
 **Uçuş** bölümü: süpürgeye bin/in, tüm süpürgeler, sonraki süpürge, +100 Galleon, her yarışı başlatma, Quidditch maçı, Altın
 Top'u hemen salma, maçı bitirme; uçuş durumu (hız, yönelim, takviye, irtifa, çarpma), yarış ve maç durumu, kese.
 **Savaş** bölümü: her düşman türünü önüne çağırma, hepsini yok etme / sersemletme, boss'u sonraki aşamaya geçirme, düşman
@@ -358,6 +391,7 @@ src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Stu
                       spells/ (SpellCaster, SpellSystem, SpellTargets, Unistroke),
                       ai/ (BehaviorTree, NavGrid + A*, Squad), combat/ (EncounterManager, Enemy, EnemyTypes, SpiderQueen, DuelClub),
                       flight/ (BroomFlight, BroomShop, RaceManager, QuidditchMatch), Inventory (Galleon, süpürgeler, rekorlar),
+                      social/ (Companion, SocialManager, Relationships),
                       TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
@@ -369,8 +403,8 @@ src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerat
 src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
-src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, test salonu, arazi, şato, şato içi, bitki örtüsü
+src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, DialogueUI, FriendsPanel, PauseMenu, GalleryPanel, CharacterCreator, styles.css
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, test salonu, arazi, şato, şato içi, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -387,7 +421,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 7. ✅ Büyü sistemi, efektler, jest tanıma
 8. ✅ Savaş, düşmanlar, yapay zekâ, düello, boss
 9. ✅ Süpürge dükkânı, uçuş, yarışlar, Quidditch
-10. Dostlar, diyalog, yakınlık, NPC rutinleri
+10. ✅ Dostlar, diyalog, yakınlık, NPC rutinleri
 11. Ses motoru, SFX, adaptif müzik, konuşma
 12. Hikâye, görevler, dersler, bina puanları, açılış sekansı
 13. Arayüz cilası, menüler, harita, kayıt sistemi

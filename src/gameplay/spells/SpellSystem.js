@@ -112,7 +112,7 @@ export class SpellSystem {
   /**
    * Launch a bolt.
    * @param {any} spell spell data (SPELLS entry or PRACTICE_BOLT)
-   * @param {{id:string, from:THREE.Vector3, dir:THREE.Vector3, power?:number, owner?:any, ignore?:Set<number>}} o
+   * @param {{id:string, from:THREE.Vector3, dir:THREE.Vector3, power?:number, owner?:any, ignore?:Set<number>}} o owner: 'player', 'ally' (companions: never hits the player) or an enemy
    */
   launch(spell, o) {
     const p = {
@@ -173,9 +173,10 @@ export class SpellSystem {
     const to = _v.copy(from).addScaledVector(_d, step).clone();
 
     // Shields (hostile bolts vs the player's Protego).
-    if (p.owner !== 'player' && this.shield && this._hitsShield(p, from, to)) return p.life > 0;
+    const hostile = p.owner !== 'player' && p.owner !== 'ally';
+    if (hostile && this.shield && this._hitsShield(p, from, to)) return p.life > 0;
     // Hostile bolts vs the player.
-    if (p.owner !== 'player' && this.player && !this.player.dead && !(this.player.invulnerable > 0)) {
+    if (hostile && this.player && !this.player.dead && !(this.player.invulnerable > 0)) {
       const feet = this.player.position;
       const a = new THREE.Vector3(feet.x, feet.y + 0.35, feet.z);
       const b = new THREE.Vector3(feet.x, feet.y + 1.55, feet.z);
