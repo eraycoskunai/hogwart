@@ -410,7 +410,8 @@ export class CastleInterior {
 
   async _chooseRequirement(L) {
     const spec = this.cellState.get(L.link.b).spec;
-    const options = Object.entries(spec.variants).map(([id, v]) => ({ id, label: v.label }));
+    const story = this.ctx.state.story ?? {};
+    const options = Object.entries(spec.variants).filter(([, v]) => !v.requires || story[v.requires]).map(([id, v]) => ({ id, label: v.label }));
     const pick = await this.ctx.ui.choose('İhtiyaç Odası', 'Neye ihtiyacın var?', options);
     if (!pick || this._disposed) return;
     const changed = pick !== this.state.variant;

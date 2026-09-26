@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 11 — Ses motoru, efektler, uyarlanır müzik, konuşma** (Faz 1–10 tamam)
+> **Durum: Faz 12 — Hikâye, görevler, dersler, bina puanları, açılış** (Faz 1–11 tamam)
 
 ## Çalıştırma
 
@@ -39,6 +39,7 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 | Kaçın (yuvarlan, kısa dokunulmazlık) / süpürgede takla | F / Sol Alt | D-pad aşağı |
 | Süpürgeye bin / in (havadayken atlarsın!) | B | D-pad yukarı |
 | Dostlar listesi | J | — |
+| Günlük (görevler, Bina Kupası) | L | — |
 | Hızlı kayıt / yükleme | F5 / F9 | — |
 | Kontrol listesi | H | Back |
 | Menü | Esc / P | Start |
@@ -380,6 +381,44 @@ Tarayıcı kuralları gereği ses motoru ilk tıklamada / tuşa basışta açıl
   her karakterin adından türeyen kendine özgü ses perdesi, cümle sonunda düşen (soruda yükselen) tonlama. Ayarlar →
   Ses → *Karakter konuşması*: Mırıldanma / Tarayıcı sesi (Türkçe TTS) / Kapalı. Altyazılar açılıp kapatılabilir.
 
+## Hikâye, görevler ve dersler (Faz 12)
+
+**Açılış**: yeni oyunda önce kabul mektubu gelir (adın ve binanla), ardından alacakaranlıkta gölün üzerinden şatoya uzanan
+34 saniyelik bir sinematik uçuş ve anlatım; hikâye büyük kapıların önünde başlar.
+
+**Ana hikâye — *Mühürlü Kule*** (özgün): şatonun hiç açılmamış kulesinin taşları geceleri ışıldamaya başlamıştır; eski bir
+öğrenci olan kara büyücü **Morvek Kalgan** kulenin üç mühür parçasının peşindedir.
+
+| Bölüm | Ad | Ne yapılır |
+|---|---|---|
+| 1 | Hoş geldin | Büyük Salon'a git, bir sınıf arkadaşınla konuş |
+| 2 | İlk dersler | Tılsım ve KSKS derslerine katıl |
+| 3 | Duvardaki fısıltı | 3. kattaki gizli odayı bul |
+| 4 | Yasak Bölüm | Zırhları alt et, Mühürler Kitabı'nı bul |
+| 5 | Kuzeydeki gölgeler | Karanlık büyücü kampını yen, ilk parçayı al |
+| 6 | Ağların kalbi | Nyxara'yı yen, ikinci parçayı al |
+| 7 | Soğuğun kıyısı | Patronus'u öğren, gece Solgunları kov, üçüncü parçayı al |
+| 8 | Mühürlü Kule | İhtiyaç Odası'nı "Mühürlü Kule" olarak çağır, Kalgan'la düello et |
+
+Son bölümde anlatım ve **Bina Kupası** sonuçlarıyla kapanış gelir. Yan görevler: iki arkadaş edinmek, süpürge alıp
+madalya kazanmak, Düello Kulübü'nde yükselmek, Quidditch maçı kazanmak, İksir ve Uçuş dersleri.
+Görev takipçisi sol üstte hedefi ve uzaklığı gösterir, ekranda bir işaret yön gösterir; **L** ile açılan *Günlük* bütün
+görevleri ve adımlarını, Bina Kupası sıralamasını listeler. Hikâye eşyaları dünyada parlar, E ile alınır.
+
+**Dersler** (ders saatleri 09:00–18:00, profesörle konuş):
+
+| Ders | Profesör | Oyun |
+|---|---|---|
+| Tılsım: Wingardium Leviosa | Tilda Çınarlı (Tılsım sınıfı) | Üç minderi havalandırıp parlayan çembere bırak (2 dk) |
+| KSKS: Savuşturma | Baran Demirkalkan (KSKS sınıfı) | Sekiz antrenman büyüsünü Protego ile tam zamanında savuştur |
+| KSKS: Expecto Patronum | aynı | Patronus'u öğren (o zamana dek kilitli) ve bir kez başarıyla yap |
+| İksir: Uyanış İksiri | Selvi Ateşoğlu (zindan) | Tarifi oku, sonra kazan başında her adımı dört seçenekten hatırla |
+| Uçuş: Halka parkuru | Rüzgâr Aydemir (Quidditch sahası) | Saha turu parkurunu uç, madalya notu belirler |
+
+Geçilen ders binana puan kazandırır (her ders günde bir kez). **Bina puanları** dersler, görevler, düellolar ve maçlarla
+artar; diğer binalar her gün biraz puan toplar. Gece yarısına doğru (22:30'dan sonra) şato koridorlarında dolaşırken bir
+sınıf başkanına yakalanırsan binan puan kaybeder.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
@@ -392,6 +431,8 @@ oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; 
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 **Büyüler** bölümü: büyüyü seçme düğmeleri, sınırsız odak anahtarı, tüm büyülerde usta olma, efektleri temizleme; odak,
 mermi, kırık nesne, buz tabakası ve partikül istatistikleri.
+**Hikâye** bölümü: açılışı oynatma, görevde sonraki adım, finale atlama, Kalgan'ı çağırma, kapanış, +50 bina puanı,
+her dersi saatten bağımsız başlatma; hikâye ve ders durumu, bina puanları.
 **Ses ve müzik** bölümü: müzik ruh hâlini zorlama (veya otomatik), örnek efektler, konuşma testi; ses motoru durumu,
 anlık/döngü/toplam ses sayısı, yankı, çalan ruh hâli, ölçü ve nota sayısı, konuşma kipi.
 **Dostlar** bölümü: her dostu önüne çağırma, herkese +20 yakınlık, takibi bitirme, dostlar listesi; dostların durumu
@@ -423,6 +464,7 @@ src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Stu
                       ai/ (BehaviorTree, NavGrid + A*, Squad), combat/ (EncounterManager, Enemy, EnemyTypes, SpiderQueen, DuelClub),
                       flight/ (BroomFlight, BroomShop, RaceManager, QuidditchMatch), Inventory (Galleon, süpürgeler, rekorlar),
                       social/ (Companion, SocialManager, Relationships),
+                      story/ (QuestSystem, LessonManager, StoryDirector, HousePoints),
                       TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
@@ -434,10 +476,10 @@ src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerat
 src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
-src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, DialogueUI, FriendsPanel, PauseMenu, GalleryPanel, CharacterCreator, styles.css
+src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, DialogueUI, FriendsPanel, StoryUI, PauseMenu, GalleryPanel, CharacterCreator, styles.css
 src/audio/            AudioEngine (kanallar, yankı, 3B), Synth (tarif → Web Audio), SoundDirector (olay → ses, ortam, adımlar),
                       MusicDirector (üretken, uyarlanır müzik), Voice (sentez konuşma / TTS)
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, sesler, müzik, test salonu, arazi, şato, şato içi, bitki örtüsü
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, sesler, müzik, hikâye, dersler, test salonu, arazi, şato, şato içi, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -456,6 +498,6 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 9. ✅ Süpürge dükkânı, uçuş, yarışlar, Quidditch
 10. ✅ Dostlar, diyalog, yakınlık, NPC rutinleri
 11. ✅ Ses motoru, SFX, adaptif müzik, konuşma
-12. Hikâye, görevler, dersler, bina puanları, açılış sekansı
+12. ✅ Hikâye, görevler, dersler, bina puanları, açılış sekansı
 13. Arayüz cilası, menüler, harita, kayıt sistemi
 14. Optimizasyon, denge, son cila

@@ -54,6 +54,12 @@ import { MusicDirector } from './audio/MusicDirector.js';
 import { Voice } from './audio/Voice.js';
 import { SoundDirector } from './audio/SoundDirector.js';
 import { FaceAnimator } from './animation/FaceAnimator.js';
+import { HousePoints } from './gameplay/story/HousePoints.js';
+import { QuestSystem } from './gameplay/story/QuestSystem.js';
+import { LessonManager } from './gameplay/story/LessonManager.js';
+import { StoryDirector } from './gameplay/story/StoryDirector.js';
+import { StoryUI } from './ui/StoryUI.js';
+import { LESSONS } from './data/lessons.js';
 import { COMBAT, BOSS } from './data/combat.js';
 import { SPELL_WHEEL, MASTERY } from './data/spells.js';
 import { describeCode } from './data/input.js';
@@ -222,6 +228,20 @@ class Game {
       ui: { say: (n, t) => this.hud?.say(n, t), notice: (t) => this.hud?.notice(t), toast: (t, d) => this.hud?.toast(t, d) },
       playerName: () => this.characterData.firstName, camera: this.camera,
     });
+    // Story: quests, lessons, the House Cup and the set pieces.
+    const storyUi = { say: (n, t) => this.hud?.say(n, t), notice: (t) => this.hud?.notice(t), toast: (t, d) => this.hud?.toast(t, d) };
+    this.storyUi = new StoryUI(document.getElementById('hud'), bus);
+    this.housePoints = new HousePoints(bus, () => this.characterData.house);
+    this.quests = new QuestSystem({
+      bus, game: this, inventory: this.inventory, relationships: this.relationships, housePoints: this.housePoints, worldState: this.worldState,
+      scene: this.scene, interactions: this.interactions, particles: { glow: this.spells.glow }, ui: storyUi,
+    });
+    this.lessons = new LessonManager({
+      bus, game: this, physics: this.physics, spells: this.spells, caster: this.caster, player: this.player, races: this.races, flight: this.flight,
+      housePoints: this.housePoints, clock: this.clock, scene: this.scene, library: this.library, preset, interactions: this.interactions,
+      dialogue: this.dialogueUi, begin: (o) => this._beginDialogue(o), end: () => this._endDialogue(), ui: storyUi,
+    });
+    this.story = new StoryDirector({ bus, game: this, quests: this.quests, housePoints: this.housePoints, parchment: this.storyUi, ui: storyUi, voice: this.voice });
     this._enterCombatRegion();
 
     this._progress('Arayüz yükleniyor…', 0.9);
@@ -303,6 +323,14 @@ class Game {
           const a = g._menuAngle;
           g.camera.position.set(o.center[0] + Math.sin(a) * o.radius, o.center[1] + o.height, o.center[2] + Math.cos(a) * o.radius);
           g.camera.lookAt(_v.fromArray(o.look));
+        },
+      },
+      letter: {
+        enter: (g) => {
+          g.input.gameplayEnabled = false;
+          g.input.clearAll();
+          g.input.exitPointerLock();
+          g.hud.prompt('');
         },
       },
       dialogue: {
@@ -459,6 +487,7 @@ class Game {
     if (input.pressed('lockOn') && !this.player.dead) this.cameraRig.toggleLock(lockTargets, this.player.position);
     if (input.pressed('broom')) this.flight.toggle();
     if (input.pressed('friends')) this.friendsPanel.toggle();
+    if (input.pressed('journal')) this.storyUi.toggleJournal();
     if (input.pressed('dodge')) {
       if (this.flight.active) this.flight.roll(Math.sign(this.player.intent.axis.x));
       else this._dodge();
@@ -538,6 +567,7 @@ class Game {
     this.flight.allowed = !!room.allowFlight;
     this.races.setRegion(room);
     this.social.setRegion(room);
+    this.lessons.setRegion(room);
     if (room.id === 'grounds') {
       const heightAt = (x, z) => room.heightAt(x, z);
       this.shop = new BroomShop({
@@ -557,6 +587,8 @@ class Game {
     this.flight.reset();
     this.dialogueUi.close();
     this.social.clear();
+    this.lessons.clear();
+    this.quests.clearWorld();
     this.races.clear();
     this.shop?.dispose();
     this.shop = null;
@@ -757,8 +789,13 @@ class Game {
       this.inventory.reset();
       this.relationships.reset();
       this.social.setRegion(this.room);
-      this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
-      this.cameraRig.snapTo(this.room.spawn.position, this.room.spawn.yaw);
+      this.housePoints.reset();
+      this.quests.reset();
+      this.lessons.deserialize(null);
+      // The story takes over: letter → opening flyover → chapter 1.
+      this.fsm.change('letter');
+      this.story.newGame();
+      return;
     }
     this.fsm.change('play');
     this.hud.notice(`Hoş geldin, ${this.characterData.firstName}!`);
@@ -809,6 +846,7 @@ class Game {
       spells: this.caster.serialize(),
       inventory: this.inventory.serialize(),
       social: this.relationships.serialize(),
+      story: { quests: this.quests.serialize(), house: this.housePoints.serialize(), lessons: this.lessons.serialize(), locked: [...this.caster.locked] },
       camera: { yaw: this.cameraRig.yaw, pitch: this.cameraRig.pitch },
     };
   }
@@ -851,6 +889,19 @@ class Game {
     this.flight.reset();
     this.inventory.deserialize(d.inventory);
     this.relationships.deserialize(d.social);
+    if (d.story) {
+      this.quests.deserialize(d.story.quests);
+      this.housePoints.deserialize(d.story.house);
+      this.lessons.deserialize(d.story.lessons);
+      this.caster.locked = new Set((d.story.locked ?? []).filter((k) => typeof k === 'string'));
+    } else {
+      // A save from before the story: start the chapters without the opening.
+      this.quests.reset();
+      this.housePoints.reset();
+      this.lessons.deserialize(null);
+      this.caster.locked = new Set();
+      this.quests.begin();
+    }
     this.social.setRegion(this.room);
     this.room.onTeleport(this.player.position);
     this.clock.deserialize(d.clock);
@@ -906,6 +957,7 @@ class Game {
             'Dinamik (uyanık)': `${p.dynamics} (${p.awake})`,
             Kinematik: p.kinematics,
           },
+          Hikâye: { ...this.story.stats, ...this.lessons.stats, 'Bina puanları': this.housePoints.standings.map((h) => `${h.label} ${h.points}`).join(' · ') },
           Ses: this.sound.stats,
           Dostlar: { ...this.social.stats, Saat: this.clock.format() },
           Uçuş: { ...this.flight.stats, ...this.races.stats, ...(this.match?.stats ?? {}), Kese: `${this.inventory.galleons} Galleon · süpürgeler: ${this.inventory.brooms.map((b) => BROOMS[b].name).join(', ')}` },
@@ -949,6 +1001,28 @@ class Game {
         },
         broom: () => this.flight.toggle(),
         summon: (id) => this.social.summon(id),
+        opening: () => {
+          if (!this.fsm.is('play')) return;
+          this.fsm.change('letter');
+          this.story.newGame();
+        },
+        questNext: () => {
+          const id = this.quests.tracker?.id;
+          if (id) this.quests.advance(id);
+        },
+        toFinale: () => {
+          if (!Object.keys(this.quests.quests).length) this.quests.begin();
+          for (let i = 0; i < 40 && this.quests.mainQuest && this.quests.mainQuest !== 'main8'; i++) this.quests.advance(this.quests.mainQuest);
+          this.caster.locked.delete('patronus');
+        },
+        villain: () => this.story._spawnVillain(),
+        ending: () => this.story.ending(),
+        points: () => this.housePoints.award(50, 'hata ayıklama'),
+        lesson: (id) => {
+          const prof = this.lessons.profs.find((p) => p.key === LESSONS[id].teacher);
+          if (prof && !this.lessons.active) this.lessons._start(id, prof);
+          else this.hud.notice('Bu dersin profesörü bu bölgede değil');
+        },
         mood: (m) => {
           this.sound.forced = m === 'auto' ? null : m;
         },
@@ -1157,6 +1231,9 @@ class Game {
     this.duel?.fixedUpdate(dt);
     this.races.fixedUpdate(dt);
     this.social.fixedUpdate(dt);
+    this.lessons.fixedUpdate(dt);
+    this.quests.update(dt);
+    this.story.update(dt);
     this.match?.fixedUpdate(dt);
     this.triggers.update(c.position, c.height, c.radius);
     if (c.swimming && !this._deepWarned && this.room.waterDepth(c.position.x, c.position.z) > LAKE.deepWarning) {
@@ -1202,6 +1279,11 @@ class Game {
     this.duel?.render(dt, env);
     this.races.frame(dt);
     this.social.render(dt, env);
+    this.lessons.render(dt, env);
+    this.storyUi.update(dt, {
+      tracker: this.quests.tracker, lesson: this.lessons.hud, journal: this.quests.journal, standings: this.housePoints.standings,
+      camera: this.camera, width: this.renderer.width, height: this.renderer.height, player, region: this.room.id, hidden: !this.fsm.is('play'),
+    });
     this.dialogueUi.update(dt);
     this.friendsPanel.update(dt, () => this.social.summary);
     this.match?.frame(dt);
@@ -1214,7 +1296,7 @@ class Game {
     this.flightHud.update(dt, { flight: this.flight, race: this.races.hud, match: this.match?.hud ?? null, camera: this.camera, width: this.renderer.width, height: this.renderer.height, player });
     this.combatHud.update(dt, {
       enemies: this.combat.enemies, camera: this.camera, width: this.renderer.width, height: this.renderer.height,
-      player, chill: this.combat.chill, focus: this.duel?.focus ?? (this.combat.boss?.engaged ? this.combat.boss : null),
+      player, chill: this.combat.chill, focus: this.duel?.focus ?? (this.story.villain && !this.story.villain.dead ? this.story.villain : this.combat.boss?.engaged ? this.combat.boss : null),
     });
 
     let lockScreen = null;

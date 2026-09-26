@@ -42,6 +42,8 @@ export class SpellCaster {
     this.xp = {};
     this.pending = null;
     this.lumos = null;
+    /** Spells not learned yet (taught in lessons by the story). */
+    this.locked = new Set();
     this.shieldAge = -1;
     this.unlimited = false;
     this.gesture = { active: false, points: [], cursor: { x: 0, y: 0 }, result: null };
@@ -202,6 +204,11 @@ export class SpellCaster {
     const s = SPELLS[id];
     const p = this.player;
     if (!s || p.dead || this.pending) return false;
+    if (this.locked.has(id)) {
+      this.bus.emit('spell:fail', { reason: 'locked' });
+      this.bus.emit('spell:message', { text: `${s.name} henüz öğrenilmedi — bir derste öğretilecek.` });
+      return false;
+    }
     if ((this.cooldowns[id] ?? 0) > 0) return false;
     const cost = this.cost(id) * (1 - CASTING.gesture.bonusCost * gestureBonus);
     if (!this.unlimited && this.focus < cost) {

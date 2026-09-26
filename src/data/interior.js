@@ -382,6 +382,20 @@ export const INTERIOR = Object.freeze({
             { type: 'lights', list: [{ pos: [29, 26, -27], color: 0xffe0b0, intensity: 14, distance: 18, flicker: CANDLE }] },
           ],
         },
+        sealed: {
+          label: 'Mühürlü Kule',
+          /** Offered only once the three seal pieces are found (worldState.story flag). */
+          requires: 'sealsReady',
+          line: 'Duvarda soğuk, mavi bir ışıkla parlayan demir bir kapı beliriyor. Mühür parçaları cebinde titriyor…',
+          features: [
+            { type: 'dais', min: [26, -29.5], max: [32, -24.5], height: 0.25, steps: 1, mat: 'marble' },
+            { type: 'candleCluster', list: [[23, -23, 1.1], [23, -31, 1.1], [35.4, -23, 1.1], [35.4, -31, 1.1]] },
+            { type: 'lights', list: [
+              { pos: [29, 26, -27], color: 0x6a8cff, intensity: 16, distance: 18, flicker: CANDLE },
+              { pos: [24, 23, -27], color: 0x9a6aff, intensity: 6, distance: 9, flicker: TORCH },
+            ] },
+          ],
+        },
         hiding: {
           label: 'Saklanma yeri',
           line: 'Duvarda küçük bir kapı beliriyor… İçerisi sıcak bir şömine ve yumuşak koltuklarla dolu.',
