@@ -247,6 +247,8 @@ class Game {
     this._progress('Arayüz yükleniyor…', 0.9);
     await nextFrame();
     this.hud = new HUD(document.getElementById('hud'), bus, this.input);
+    // HUD rewrites its root: re-attach the overlays created earlier.
+    for (const el of [this.dialogueUi.el.root, this.friendsPanel.el, this.storyUi.el.root]) document.getElementById('hud').appendChild(el);
     this.hud.subtitles = this.settings.get('showSubtitles');
     bus.on('settings:changed', ({ key }) => {
       if (key === 'showSubtitles' || key === '*') this.hud.subtitles = this.settings.get('showSubtitles');
