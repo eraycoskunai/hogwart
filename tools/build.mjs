@@ -12,6 +12,12 @@
 import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
 
+/** CDN modules every session needs (same URLs as the import map). */
+const PRELOAD = [
+  'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js',
+  'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js',
+];
+
 const root = new URL('../', import.meta.url);
 const out = new URL('dist/', root);
 mkdirSync(out, { recursive: true });
@@ -31,7 +37,9 @@ copyFileSync(new URL('src/ui/styles.css', root), new URL('styles.css', out));
 
 const html = readFileSync(new URL('index.html', root), 'utf8')
   .replace('href="src/ui/styles.css"', 'href="styles.css"')
-  .replace('src="src/main.js"', 'src="main.js"');
+  .replace('src="src/main.js"', 'src="main.js"')
+  // Start the big downloads together instead of one after another.
+  .replace('</head>', `  <link rel="modulepreload" href="main.js">\n  ${PRELOAD.map((u) => `<link rel="modulepreload" href="${u}">`).join('\n  ')}\n</head>`);
 if (!html.includes('src="main.js"') || !html.includes('href="styles.css"')) throw new Error('index.html paths not found');
 writeFileSync(new URL('index.html', out), html);
 console.log('dist/ hazır');
