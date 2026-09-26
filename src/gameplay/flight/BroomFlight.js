@@ -61,6 +61,13 @@ export class BroomFlight {
     this.broom = null;
     this._broomId = null;
     this._offBroom = this.bus.on('inventory:broom', () => this._buildBroom());
+    // Teleports (debug, race gates, match line-up) arrive at rest.
+    this._offTeleport = this.bus.on('player:teleported', ({ yaw }) => {
+      if (!this.active) return;
+      this.velocity.set(0, 0, 0);
+      this.speed = 0;
+      this.yaw = yaw;
+    });
     this._buildBroom();
   }
 
@@ -430,6 +437,7 @@ export class BroomFlight {
   dispose() {
     this.reset();
     this._offBroom();
+    this._offTeleport();
     this.broom?.dispose();
   }
 }

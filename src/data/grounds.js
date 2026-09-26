@@ -176,7 +176,7 @@ export const GROUND_TELEPORTS = Object.freeze([
   { name: 'Dağ eteği (trol)', pos: [420, null, -560], yaw: Math.PI * 0.8 },
   { name: 'Kuzey yolu (karanlık büyücüler)', pos: [30, null, -455], yaw: 0 },
   { name: 'Örümcek yuvası (boss)', pos: [-620, null, -196], yaw: 0 },
-  { name: 'Süpürge dükkânı', pos: [374, null, -46], yaw: Math.PI / 2 },
+  { name: 'Süpürge dükkânı', pos: [372.4, null, -46], yaw: Math.PI / 2 },
   { name: 'Yarış: şato çevresi (başlangıç)', pos: [98, 42, -4], yaw: Math.PI / 2 },
   { name: 'Yarış: göl ve orman (başlangıç)', pos: [-186, null, 152], yaw: 0 },
 ]);
