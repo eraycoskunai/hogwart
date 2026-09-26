@@ -6,7 +6,7 @@ export const GAME = Object.freeze({
   title: 'Hogwarts: Mühürlü Kule',
   version: '0.1.0',
   /** Bumped whenever the save layout changes; SaveSystem migrates older saves. */
-  saveVersion: 2,
+  saveVersion: 3,
   storagePrefix: 'hogwarts-rpg',
   /** Fixed physics step in seconds. */
   fixedStep: 1 / 60,
@@ -17,5 +17,7 @@ export const GAME = Object.freeze({
   /** Seconds between autosaves while playing. */
   autosaveInterval: 120,
   /** Number of manual save slots. */
-  saveSlots: 3,
+  saveSlots: 6,
+  /** Rotating autosaves kept. */
+  autoSaves: 3,
 });

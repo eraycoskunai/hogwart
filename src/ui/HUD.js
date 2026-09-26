@@ -4,6 +4,7 @@
  * death message and the controls help panel. Pure DOM, driven by EventBus.
  */
 import { ACTIONS, describeCode } from '../data/input.js';
+import { NOTICES } from '../data/ui.js';
 
 export const HUD_TIMING = Object.freeze({
   toastDuration: 5.5,
@@ -42,7 +43,8 @@ export class HUD {
       <div class="hud-crosshair"><i></i><i></i><i></i><i></i><b></b></div>
       <div class="hud-lock"><span></span></div>
       <div class="hud-toasts"></div>
-      <div class="hud-notice"></div>
+      <div class="hud-notices"></div>
+      <div class="hud-place"><small></small><b></b></div>
       <div class="hud-prompt"></div>
       <div class="hud-say"><b></b><span></span></div>
       <div class="hud-choice"><h3></h3><p></p><div class="hud-choice-options"></div></div>
@@ -64,7 +66,10 @@ export class HUD {
       lock: q('.hud-lock'),
       lockName: q('.hud-lock span'),
       toasts: q('.hud-toasts'),
-      notice: q('.hud-notice'),
+      notices: q('.hud-notices'),
+      place: q('.hud-place'),
+      placeSmall: q('.hud-place small'),
+      placeName: q('.hud-place b'),
       prompt: q('.hud-prompt'),
       center: q('.hud-center'),
       centerTitle: q('.hud-center h2'),
@@ -149,9 +154,29 @@ export class HUD {
 
   /** Small bottom-right notice (saves, settings). @param {string} text */
   notice(text) {
-    this.el.notice.textContent = text;
-    this.el.notice.classList.add('show');
-    this._noticeTimer = HUD_TIMING.noticeDuration;
+    // Stack: newest at the bottom, oldest dropped past the limit.
+    const box = this.el.notices;
+    const div = document.createElement('div');
+    div.className = 'hud-notice-item';
+    div.textContent = text;
+    box.appendChild(div);
+    while (box.children.length > NOTICES.max) box.firstElementChild.remove();
+    requestAnimationFrame(() => div.classList.add('show'));
+    setTimeout(() => {
+      div.classList.remove('show');
+      setTimeout(() => div.remove(), 400);
+    }, NOTICES.duration * 1000);
+  }
+
+  /** Big place name (entering a room / discovering a place). */
+  place(name, small = '') {
+    this.el.placeSmall.textContent = small;
+    this.el.placeName.textContent = name;
+    this.el.place.classList.remove('show');
+    void this.el.place.offsetWidth;
+    this.el.place.classList.add('show');
+    clearTimeout(this._placeT);
+    this._placeT = setTimeout(() => this.el.place.classList.remove('show'), 2600);
   }
 
   /** Date · time · weather line (top right). @param {string} text */
@@ -276,10 +301,6 @@ export class HUD {
     if (this._sayTimer > 0) {
       this._sayTimer -= dt;
       if (this._sayTimer <= 0) this.el.say.classList.remove('show');
-    }
-    if (this._noticeTimer > 0) {
-      this._noticeTimer -= dt;
-      if (this._noticeTimer <= 0) this.el.notice.classList.remove('show');
     }
   }
 }

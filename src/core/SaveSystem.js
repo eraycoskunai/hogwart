@@ -58,18 +58,23 @@ export const SafeStorage = {
  * @property {number} version
  * @property {number} timestamp
  * @property {string} label
+ * @property {any} meta   summary for menus: place, chapter, playtime, name, house, galleons, thumb (JPEG data URL)
  * @property {any} data
  */
 
 export class SaveSystem {
   /**
-   * @param {{prefix:string, version:number, slots:number}} cfg
+   * Slots: 'quick', rotating autosaves 'auto' → 'auto2' → 'auto3', and manual 1…N.
+   * @param {{prefix:string, version:number, slots:number, autos?:number}} cfg
    * @param {Record<number,(data:any)=>any>} [migrations] map "from version" → migrate fn
    */
   constructor(cfg, migrations = {}) {
     this.prefix = cfg.prefix;
     this.version = cfg.version;
     this.slotCount = cfg.slots;
+    this.autoCount = cfg.autos ?? 1;
+    /** Last failure reason ('quota' | 'storage' | null). */
+    this.error = null;
     this.migrations = migrations;
   }
 
@@ -78,9 +83,16 @@ export class SaveSystem {
     return `${this.prefix}:save:${slot}`;
   }
 
-  /** All slot identifiers: 'auto' + 1..N */
-  get slotIds() {
+  /** Autosave slot ids, newest first. */
+  get autoIds() {
     const ids = ['auto'];
+    for (let i = 2; i <= this.autoCount; i++) ids.push(`auto${i}`);
+    return ids;
+  }
+
+  /** All slot identifiers: quick, autos, manual 1..N. */
+  get slotIds() {
+    const ids = ['quick', ...this.autoIds];
     for (let i = 1; i <= this.slotCount; i++) ids.push(i);
     return ids;
   }
@@ -91,10 +103,55 @@ export class SaveSystem {
    * @param {string} [label]
    * @returns {boolean}
    */
-  save(slot, data, label = '') {
+  save(slot, data, label = '', meta = null) {
     /** @type {SaveEnvelope} */
-    const envelope = { version: this.version, timestamp: Date.now(), label, data };
-    return SafeStorage.setJSON(this._key(slot), envelope);
+    const envelope = { version: this.version, timestamp: Date.now(), label, meta, data };
+    let text;
+    try {
+      text = JSON.stringify(envelope);
+    } catch {
+      this.error = 'storage';
+      return false;
+    }
+    let ok = SafeStorage.set(this._key(slot), text);
+    // Full storage: retry without the thumbnail.
+    if (!ok && meta?.thumb) {
+      envelope.meta = { ...meta, thumb: null };
+      ok = SafeStorage.set(this._key(slot), JSON.stringify(envelope));
+    }
+    this.error = ok ? null : 'quota';
+    return ok;
+  }
+
+  /** Autosave: older autosaves move down the rotation. */
+  autosave(data, label, meta) {
+    const ids = this.autoIds;
+    for (let i = ids.length - 1; i > 0; i--) {
+      const prev = SafeStorage.get(this._key(ids[i - 1]));
+      if (prev != null) SafeStorage.set(this._key(ids[i]), prev);
+    }
+    return this.save('auto', data, label, meta);
+  }
+
+  /** Raw JSON text of a slot (export to a file). */
+  exportSlot(slot) {
+    return SafeStorage.get(this._key(slot));
+  }
+
+  /**
+   * Store a save file's text in a slot (import). Validates the envelope.
+   * @returns {boolean}
+   */
+  importSlot(slot, text) {
+    let env;
+    try {
+      env = JSON.parse(text);
+    } catch {
+      return false;
+    }
+    if (!env || typeof env !== 'object' || typeof env.version !== 'number' || env.version > this.version || !env.data || typeof env.data !== 'object') return false;
+    env.timestamp = Number(env.timestamp) || Date.now();
+    return SafeStorage.setJSON(this._key(slot), env);
   }
 
   /**
@@ -132,7 +189,7 @@ export class SaveSystem {
   list() {
     return this.slotIds.map((slot) => {
       const env = this.load(slot);
-      return env ? { slot, empty: false, timestamp: env.timestamp, label: env.label } : { slot, empty: true };
+      return env ? { slot, empty: false, timestamp: env.timestamp, label: env.label, meta: env.meta ?? null } : { slot, empty: true };
     });
   }
 

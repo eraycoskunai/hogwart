@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 12 — Hikâye, görevler, dersler, bina puanları, açılış** (Faz 1–11 tamam)
+> **Durum: Faz 13 — Arayüz cilası, menüler, harita, kayıt sistemi** (Faz 1–12 tamam)
 
 ## Çalıştırma
 
@@ -40,7 +40,8 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 | Süpürgeye bin / in (havadayken atlarsın!) | B | D-pad yukarı |
 | Dostlar listesi | J | — |
 | Günlük (görevler, Bina Kupası) | L | — |
-| Hızlı kayıt / yükleme | F5 / F9 | — |
+| Harita (hızlı yolculuk) | M | — |
+| Hızlı kayıt / yükleme (hızlı kayıt yuvası) | F5 / F9 | — |
 | Kontrol listesi | H | Back |
 | Menü | Esc / P | Start |
 | Hata ayıklama paneli | F3 | Guide |
@@ -419,6 +420,29 @@ Geçilen ders binana puan kazandırır (her ders günde bir kez). **Bina puanlar
 artar; diğer binalar her gün biraz puan toplar. Gece yarısına doğru (22:30'dan sonra) şato koridorlarında dolaşırken bir
 sınıf başkanına yakalanırsan binan puan kaybeder.
 
+## Arayüz, harita ve kayıtlar (Faz 13)
+
+- **Harita (M)**: arazi haritası yükseklik verisinden üretilir (yükseklik renkleri, göl derinliği, tepe gölgelemesi, şatonun
+  salon ve kuleleri); şato için her katın (zindanlar, zemin, 1.–3. kat) kat planı odaları ve kapılarıyla çizilir.
+  İşaretler: oyuncu (bakış yönü oku), güncel görev hedefi, dostlar, süpürge dükkânı, yarış başlangıçları, Quidditch sahası,
+  keşfedilen tehlikeli bölgeler ve hızlı yolculuk noktaları. Tekerlekle yakınlaş, sürükleyerek kaydır.
+- **Keşif ve hızlı yolculuk**: adlandırılmış yerlere 30 m yaklaşınca "Keşfedildi" başlığıyla haritaya işlenir; haritanın
+  yan listesinden keşfedilmiş yerlere (başka bölgeye de) hızlı yolculuk yapılır. Süpürgedeyken, yarış/maç/düello/ders
+  sırasında ya da yakında düşman varken yapılamaz.
+- **Mini harita** (sağ üst): kuzey yukarıda; arazide çevrenin haritası, şato içinde bulunduğun katın planı; oyuncu oku,
+  dostlar ve görev hedefi (uzaktaysa kenara sabitlenir).
+- **Kayıt sistemi**: 6 elle kayıt yuvası, 3 dönen otomatik kayıt (süreyle, görev bitince, ana menüye dönerken) ve bir
+  hızlı kayıt yuvası (F5/F9). Her kayıt kartında o anın **küçük ekran görüntüsü**, yer (ör. "Şato · Kütüphane"), hikâye
+  bölümü, karakter adı ve binası, oyun süresi, Galleon ve tarih vardır. Kaydet / üzerine kaydet / yükle / sil (onay ister),
+  **dosyaya dışa aktar** ve **dosyadan içe aktar** (JSON). Kayıt biçimi sürümlüdür (v3), eski kayıtlar otomatik yükseltilir;
+  depolama dolarsa küçük resimsiz yeniden denenir.
+- **Menü**: Kayıtlar, Karakter (ad, bina ve kupa sırası, asa ve etkisi, kese, süpürge, oyun süresi, büyü ustalığı),
+  Dostlar, Günlük, Oynanış (zorluk, altyazılar, mini harita, görev takipçisi, **arayüz ölçeği** %85–130), Grafik,
+  Kontroller, Ses; alt kısımda Devam, Harita, **Ana menüye dön**. Açılış ekranında **Kayıt Yükle** ve **Ayarlar** da var.
+  Menülerde ok tuşlarıyla gezinilir.
+- **Cila**: üst üste gelen bildirimler yığın olarak gösterilir, yeni bir odaya/bölgeye girince yer adı başlığı çıkar,
+  yükleme ekranında ve açılışta rastgele ipuçları.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
@@ -452,7 +476,7 @@ sayıları, üretim süresi, animasyon katmanları ve IK durumu, asa bilgisi.
 index.html            import map + arayüz kökleri
 src/main.js           başlatma, oyun durum makinesi, sabit adımlı döngü (1/60 fizik, değişken render + interpolasyon)
 src/core/             EventBus, StateMachine, Input (klavye/fare/gamepad + tuş atama), Time (hit-stop),
-                      SaveSystem (3 yuva + otomatik, sürümlü), Settings, AssetCache (referans sayımı), Debug (F3)
+                      SaveSystem (6 yuva + 3 dönen otomatik + hızlı, küçük resim, dışa/içe aktarma, sürümlü), Settings, AssetCache (referans sayımı), Debug (F3)
 src/render/           Renderer (kalite ön ayarları), Atmosphere (orkestra), Sky/SkyShader, Environment, SceneLighting (CSM),
                       LightManager, FlameSprites, Weather + WeatherParticles + PrecipitationOccluder, PostFX,
                       ColorGrading, DustMotes, SurfaceShader, TerrainMaterial, LakeMaterial, WindowMaterial,
@@ -464,7 +488,7 @@ src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Stu
                       ai/ (BehaviorTree, NavGrid + A*, Squad), combat/ (EncounterManager, Enemy, EnemyTypes, SpiderQueen, DuelClub),
                       flight/ (BroomFlight, BroomShop, RaceManager, QuidditchMatch), Inventory (Galleon, süpürgeler, rekorlar),
                       social/ (Companion, SocialManager, Relationships),
-                      story/ (QuestSystem, LessonManager, StoryDirector, HousePoints),
+                      story/ (QuestSystem, LessonManager, StoryDirector, HousePoints), MapState (keşif, hızlı yolculuk),
                       TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
@@ -473,13 +497,13 @@ src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzay
                       geometry/BroomKit (süpürgeler, uçan oyuncular, toplar)
 src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerator, BodyGenerator, Garments + ClothGarment,
                       WandGenerator, CharacterTextures, Appearance, Hairline, MeshKit
-src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
+src/world/            GameClock, MapBaker (harita çizimi), RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
-src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, DialogueUI, FriendsPanel, StoryUI, PauseMenu, GalleryPanel, CharacterCreator, styles.css
+src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, DialogueUI, FriendsPanel, StoryUI, MapView, Minimap, PauseMenu, GalleryPanel, CharacterCreator, styles.css
 src/audio/            AudioEngine (kanallar, yankı, 3B), Synth (tarif → Web Audio), SoundDirector (olay → ses, ortam, adımlar),
                       MusicDirector (üretken, uyarlanır müzik), Voice (sentez konuşma / TTS)
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, sesler, müzik, hikâye, dersler, test salonu, arazi, şato, şato içi, bitki örtüsü
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, sesler, müzik, hikâye, dersler, arayüz, test salonu, arazi, şato, şato içi, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -499,5 +523,5 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 10. ✅ Dostlar, diyalog, yakınlık, NPC rutinleri
 11. ✅ Ses motoru, SFX, adaptif müzik, konuşma
 12. ✅ Hikâye, görevler, dersler, bina puanları, açılış sekansı
-13. Arayüz cilası, menüler, harita, kayıt sistemi
+13. ✅ Arayüz cilası, menüler, harita, kayıt sistemi
 14. Optimizasyon, denge, son cila

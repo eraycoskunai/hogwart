@@ -10,7 +10,7 @@
  * ctx.state.castle so it survives region changes and saves.
  */
 import * as THREE from 'three';
-import { INTERIOR, INTERIOR_MATERIALS, INTERIOR_EXTRA_KEYS, INTERIOR_KIT as IK, LEVELS } from '../../data/interior.js';
+import { INTERIOR, INTERIOR_MATERIALS, INTERIOR_EXTRA_KEYS, INTERIOR_KIT as IK, LEVELS, CASTLE_TELEPORTS } from '../../data/interior.js';
 import { CellBuilder, INWARD, FACE_YAW, OPPOSITE, M } from './CellBuilder.js';
 import { CellStreamer } from './CellStreamer.js';
 import { Door } from './Door.js';
@@ -471,23 +471,7 @@ export class CastleInterior {
   // ------------------------------------------------------------- teleports
 
   _teleports() {
-    const list = [];
-    const at = (name, x, y, z, yaw = 0) => list.push({ name, position: new THREE.Vector3(x, y, z), yaw });
-    at('Giriş Holü', 0, 0, 11.5, 0);
-    at('Büyük Salon', 0, 0, -15, 0);
-    at('Merdiven Kulesi (zemin)', 36, 0, 6, Math.PI / 4);
-    at('Kule 1. kat balkonu', 40, LEVELS[1], -7.8, Math.PI);
-    at('Kule 2. kat balkonu', 40, LEVELS[2], -7.8, Math.PI);
-    at('Kule 3. kat balkonu', 40, LEVELS[3], -7.8, Math.PI);
-    at('Kütüphane', 34, 7, -33, Math.PI / 2);
-    at('KSKS sınıfı', 34.5, 14, -33, Math.PI / 2);
-    at('Tılsım sınıfı', 45.5, 14, -30, -Math.PI / 2);
-    at('3. kat koridoru', 40, 21, -18, 0);
-    at('İksir zindanı', -33, -6, 6, Math.PI / 2);
-    at('Zindan merdiveni', -17, 0, 6, Math.PI / 2);
-    at('Düello Kulübü', 17.4, 0, 12.5, -Math.PI / 2);
-    at('Yasak Bölüm kapısı (zırhlar)', 26.2, 7, -34, 0);
-    return list;
+    return CASTLE_TELEPORTS.map((t) => ({ name: t.name, position: new THREE.Vector3(...t.pos), yaw: t.yaw }));
   }
 
   // ------------------------------------------------------------ characters

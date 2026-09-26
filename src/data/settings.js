@@ -15,6 +15,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   volume: { master: 0.8, music: 0.7, sfx: 0.9, ambience: 0.7, voice: 0.9 },
   /** Character speech: synthetic babble, the browser's Turkish voice, or none. */
   speech: 'babble',
+  showMinimap: true,
+  showTracker: true,
+  uiScale: 1,
   /** Post-processing opt-outs (only effective when the quality preset enables them). */
   fx: { bloom: true, ao: true, godRays: true, dust: true },
   /** Per-action overrides of keyboard bindings, e.g. { jump: ['Space', null] } */

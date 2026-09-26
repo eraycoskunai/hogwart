@@ -566,3 +566,21 @@ export const INTERIOR = Object.freeze({
   ],
   portraitGreetings: ['Merhaba!', 'Hoş geldin.', 'Oh, bir öğrenci!', 'İyi günler.'],
 });
+
+/** Castle fast-travel / debug teleport points (x, y, z, yaw). */
+export const CASTLE_TELEPORTS = Object.freeze([
+  { name: 'Giriş Holü', pos: [0, 0, 11.5], yaw: 0 },
+  { name: 'Büyük Salon', pos: [0, 0, -15], yaw: 0 },
+  { name: 'Merdiven Kulesi (zemin)', pos: [36, 0, 6], yaw: Math.PI / 4 },
+  { name: 'Kule 1. kat balkonu', pos: [40, LEVELS[1], -7.8], yaw: Math.PI },
+  { name: 'Kule 2. kat balkonu', pos: [40, LEVELS[2], -7.8], yaw: Math.PI },
+  { name: 'Kule 3. kat balkonu', pos: [40, LEVELS[3], -7.8], yaw: Math.PI },
+  { name: 'Kütüphane', pos: [34, 7, -33], yaw: Math.PI / 2 },
+  { name: 'KSKS sınıfı', pos: [34.5, 14, -33], yaw: Math.PI / 2 },
+  { name: 'Tılsım sınıfı', pos: [45.5, 14, -30], yaw: -Math.PI / 2 },
+  { name: '3. kat koridoru', pos: [40, 21, -18], yaw: 0 },
+  { name: 'İksir zindanı', pos: [-33, -6, 6], yaw: Math.PI / 2 },
+  { name: 'Zindan merdiveni', pos: [-17, 0, 6], yaw: Math.PI / 2 },
+  { name: 'Düello Kulübü', pos: [17.4, 0, 12.5], yaw: -Math.PI / 2 },
+  { name: 'Yasak Bölüm kapısı (zırhlar)', pos: [26.2, 7, -34], yaw: 0 },
+]);

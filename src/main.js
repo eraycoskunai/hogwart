@@ -60,6 +60,14 @@ import { LessonManager } from './gameplay/story/LessonManager.js';
 import { StoryDirector } from './gameplay/story/StoryDirector.js';
 import { StoryUI } from './ui/StoryUI.js';
 import { LESSONS } from './data/lessons.js';
+import { MapState } from './gameplay/MapState.js';
+import { MapView } from './ui/MapView.js';
+import { Minimap } from './ui/Minimap.js';
+import { bakeGrounds } from './world/MapBaker.js';
+import { TIPS, SAVES } from './data/ui.js';
+import { INTERIOR } from './data/interior.js';
+import { GROUND_TELEPORTS } from './data/grounds.js';
+import { SPELLS } from './data/spells.js';
 import { COMBAT, BOSS } from './data/combat.js';
 import { SPELL_WHEEL, MASTERY } from './data/spells.js';
 import { describeCode } from './data/input.js';
@@ -83,6 +91,8 @@ const BOOT_STAGES = Object.freeze({ textures: [0.12, 0.3], region: [0.36, 0.86] 
 const SAVE_MIGRATIONS = Object.freeze({
   // v2 adds the created character (older saves get the default student).
   1: (d) => ({ ...d, character: null }),
+  // v3 adds story, map and richer save metadata (all optional in the data).
+  2: (d) => d,
 });
 /** Strong spell impacts: brief slow motion; spell messages stay this long (s). */
 const SPELL_HIT_STOP = Object.freeze({ duration: 0.06, scale: 0.12 });
@@ -107,7 +117,7 @@ class Game {
   constructor() {
     this.bus = bus;
     this.settings = new Settings(bus, GAME.storagePrefix);
-    this.saves = new SaveSystem({ prefix: GAME.storagePrefix, version: GAME.saveVersion, slots: GAME.saveSlots }, SAVE_MIGRATIONS);
+    this.saves = new SaveSystem({ prefix: GAME.storagePrefix, version: GAME.saveVersion, slots: GAME.saveSlots, autos: GAME.autoSaves }, SAVE_MIGRATIONS);
     /** The created student (appearance, name, house, outfit, wand). */
     this.characterData = sanitizeCharacter(null);
     this.time = new Time(GAME);
@@ -241,6 +251,7 @@ class Game {
       housePoints: this.housePoints, clock: this.clock, scene: this.scene, library: this.library, preset, interactions: this.interactions,
       dialogue: this.dialogueUi, begin: (o) => this._beginDialogue(o), end: () => this._endDialogue(), ui: storyUi,
     });
+    this.mapState = new MapState(bus);
     this.story = new StoryDirector({ bus, game: this, quests: this.quests, housePoints: this.housePoints, parchment: this.storyUi, ui: storyUi, voice: this.voice });
     this._enterCombatRegion();
 
@@ -249,6 +260,16 @@ class Game {
     this.hud = new HUD(document.getElementById('hud'), bus, this.input);
     // HUD rewrites its root: re-attach the overlays created earlier.
     for (const el of [this.dialogueUi.el.root, this.friendsPanel.el, this.storyUi.el.root]) document.getElementById('hud').appendChild(el);
+    this.minimap = new Minimap(document.getElementById('hud'));
+    this.mapView = new MapView(document.body, { onTravel: (r, n) => this._fastTravel(r, n), onClose: () => this.fsm.change('play') });
+    this._bakeMap();
+    this._applyUiSettings();
+    bus.on('settings:changed', () => this._applyUiSettings());
+    bus.on('map:discovered', ({ name, kind }) => {
+      if (kind === 'place') this.hud.place(name, 'Keşfedildi');
+      else this.hud.notice(`Haritaya işlendi: ${name}`);
+    });
+    bus.on('quest:completed', ({ name }) => this._autosave(`Görev: ${name}`));
     this.hud.subtitles = this.settings.get('showSubtitles');
     bus.on('settings:changed', ({ key }) => {
       if (key === 'showSubtitles' || key === '*') this.hud.subtitles = this.settings.get('showSubtitles');
@@ -269,8 +290,18 @@ class Game {
       onResume: () => this.fsm.change('play'),
       onSave: (slot) => this.saveGame(slot, `Yuva ${slot}`),
       onLoad: async (slot) => {
+        this.pauseMenu.close();
         if (await this.loadGame(slot)) this.fsm.change('play');
       },
+      onDelete: (slot) => this.saves.delete(slot),
+      onExport: (slot) => this._exportSave(slot),
+      onImport: (text) => this._importSave(text),
+      onMap: () => this.fsm.change('map'),
+      onMainMenu: () => this._toMainMenu(),
+      onClose: () => this.pauseMenu.close(),
+      getProfile: () => this._profileHtml(),
+      getFriends: () => this._friendsHtml(),
+      getJournal: () => this._journalHtml(),
     });
     this.gallery = new MaterialGallery({ renderer: this.renderer, library: this.library, bus });
     this.galleryPanel = new GalleryPanel(document.getElementById('gallery'), {
@@ -308,7 +339,9 @@ class Game {
         enter: (g) => {
           g.input.gameplayEnabled = false;
           g.hud.setVisible(false);
+          g.bootEl.classList.remove('gone');
           g.bootEl.classList.add('ready');
+          g.bootEl.querySelector('.boot-tip').textContent = `İpucu: ${TIPS[Math.floor(Math.random() * TIPS.length)]}`;
           const hasSave = g.saves.latestSlot() !== null;
           g.bootEl.querySelector('[data-boot="continue"]').toggleAttribute('hidden', !hasSave);
           g._menuAngle = 0;
@@ -320,11 +353,29 @@ class Game {
           g.cameraRig.blendFromCurrent(1.4);
         },
         update: (g, dt) => {
+          if (g.pauseMenu.visible && g.input.pressed('pause') && !g.input.isRebinding) g.pauseMenu.close();
           const o = g.room.menuOrbit;
           g._menuAngle += dt * o.speed;
           const a = g._menuAngle;
           g.camera.position.set(o.center[0] + Math.sin(a) * o.radius, o.center[1] + o.height, o.center[2] + Math.cos(a) * o.radius);
           g.camera.lookAt(_v.fromArray(o.look));
+        },
+      },
+      map: {
+        enter: (g) => {
+          g.input.gameplayEnabled = false;
+          g.input.clearAll();
+          g.input.exitPointerLock();
+          g.hud.prompt('');
+          g.mapView.show(g._mapSnapshot());
+        },
+        exit: (g) => g.mapView.close(),
+        update: (g, dt) => {
+          g.input.gameplayEnabled = true; // read the map key only
+          const close = g.input.pressed('map');
+          g.input.gameplayEnabled = false;
+          if (close || g.input.pressed('pause')) g.fsm.change('play');
+          else g.mapView.update(dt, g._mapSnapshot());
         },
       },
       letter: {
@@ -369,6 +420,7 @@ class Game {
           g.hud.setVisible(false);
           g.pauseMenu.close();
           g.loadingEl.querySelector('.loading-title').textContent = label ?? '';
+          g.loadingEl.querySelector('.loading-tip').textContent = `İpucu: ${TIPS[Math.floor(Math.random() * TIPS.length)]}`;
           g._loadingProgress('', 0);
           g.loadingEl.classList.add('show');
         },
@@ -478,9 +530,13 @@ class Game {
       return;
     }
     if (input.pressed('help')) this.hud.toggleHelp();
-    if (input.pressed('quickSave')) this.saveGame('auto', 'Hızlı kayıt');
+    if (input.pressed('quickSave')) this.saveGame('quick', 'Hızlı kayıt');
+    if (input.pressed('map')) {
+      this.fsm.change('map');
+      return;
+    }
     if (input.pressed('quickLoad')) {
-      this.loadGame('auto').then((ok) => {
+      this.loadGame('quick').then((ok) => {
         if (ok && !this.fsm.is('play')) this.fsm.change('play');
       });
     }
@@ -684,6 +740,10 @@ class Game {
           this.fsm.change('creator', { mode: 'new' });
           return;
         }
+        if (btn.dataset.boot === 'load' || btn.dataset.boot === 'settings') {
+          this.pauseMenu.open('boot', btn.dataset.boot === 'load' ? 'saves' : 'gameplay');
+          return;
+        }
         if (btn.dataset.boot === 'continue') await this.loadGame(this.saves.latestSlot());
         this.fsm.change('play');
       });
@@ -764,6 +824,7 @@ class Game {
     this.room = await this.regions.load(id, (label, t) => this._loadingProgress(label, t));
     this.spells.setRegion(this.room);
     this._enterCombatRegion();
+    this._bakeMap();
     this._applyRegionView();
     this.player.setSpawn(this.room.spawn.position, this.room.spawn.yaw);
     const pos = at?.position ?? this.room.spawn.position;
@@ -790,6 +851,11 @@ class Game {
       this.playtime = 0;
       this.inventory.reset();
       this.relationships.reset();
+      // A fresh world: forget the previous game's secrets, bosses and duels.
+      for (const k of Object.keys(this.worldState)) delete this.worldState[k];
+      this.mapState.reset();
+      this.caster.xp = {};
+      this.player.heal(this.player.maxHealth);
       this.social.setRegion(this.room);
       this.housePoints.reset();
       this.quests.reset();
@@ -848,15 +914,235 @@ class Game {
       spells: this.caster.serialize(),
       inventory: this.inventory.serialize(),
       social: this.relationships.serialize(),
+      map: this.mapState.serialize(),
       story: { quests: this.quests.serialize(), house: this.housePoints.serialize(), lessons: this.lessons.serialize(), locked: [...this.caster.locked] },
       camera: { yaw: this.cameraRig.yaw, pitch: this.cameraRig.pitch },
     };
   }
 
+  /**
+   * Save to a slot with a thumbnail of the next rendered frame.
+   * @returns {Promise<boolean>}
+   */
   saveGame(slot, label) {
-    const ok = this.saves.save(slot, this.serialize(), label);
-    this.hud.notice(ok ? `Kaydedildi: ${slot === 'auto' ? 'otomatik yuva' : `yuva ${slot}`}` : 'Kayıt başarısız (depolama kapalı?)');
-    return ok;
+    return this._withThumb((thumb) => {
+      const ok = this.saves.save(slot, this.serialize(), label, this._saveMeta(thumb));
+      this.hud.notice(ok ? `Kaydedildi: ${slot === 'quick' ? 'hızlı kayıt' : `yuva ${slot}`}` : 'Kayıt başarısız — depolama dolu ya da kapalı.');
+      return ok;
+    });
+  }
+
+  /** Rotating autosave (timer, quests, region changes). */
+  _autosave(label = 'Otomatik') {
+    if (this.player.dead || !this.fsm.is('play')) return;
+    this._withThumb((thumb) => this.saves.autosave(this.serialize(), label, this._saveMeta(thumb)));
+  }
+
+  /** Run `fn(thumb)` once the next frame has rendered (or without a thumbnail after a timeout). */
+  _withThumb(fn) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (thumb) => {
+        if (done) return;
+        done = true;
+        this._thumbReq = null;
+        resolve(fn(thumb));
+      };
+      this._thumbReq = finish;
+      setTimeout(() => finish(null), 1500);
+    });
+  }
+
+  /** Draw the just-rendered frame into a small JPEG. */
+  _captureThumb() {
+    const [w, h] = SAVES.thumb;
+    const c = (this._thumbCanvas ??= Object.assign(document.createElement('canvas'), { width: w, height: h }));
+    let url = null;
+    try {
+      c.getContext('2d').drawImage(this.renderer.renderer.domElement, 0, 0, w, h);
+      url = c.toDataURL('image/jpeg', SAVES.thumbQuality);
+    } catch {
+      url = null;
+    }
+    this._thumbReq?.(url);
+  }
+
+  /** Where the player is, for save cards. */
+  _placeName() {
+    const room = this.room;
+    if (room.id === 'castle') {
+      const c = INTERIOR.cells.find((x) => x.id === room.streamer?.playerCell);
+      return c ? `Şato · ${c.name}` : 'Şato';
+    }
+    if (room.id === 'grounds') {
+      const p = this.player.position;
+      let best = null;
+      let bd = 140;
+      for (const t of GROUND_TELEPORTS) {
+        const d = Math.hypot(p.x - t.pos[0], p.z - t.pos[2]);
+        if (d < bd) {
+          bd = d;
+          best = t.name;
+        }
+      }
+      return best ? `Arazi · ${best}` : 'Hogwarts arazisi';
+    }
+    return room.name;
+  }
+
+  _saveMeta(thumb) {
+    const d = this.characterData;
+    return {
+      place: this._placeName(),
+      chapter: this.quests.tracker?.name ?? (this.quests.flags.finished ? 'Hikâye tamamlandı' : ''),
+      playtime: this.playtime,
+      name: `${d.firstName} ${d.lastName}`,
+      house: HOUSES[d.house]?.label ?? '',
+      galleons: this.inventory.galleons,
+      thumb,
+    };
+  }
+
+  _exportSave(slot) {
+    const text = this.saves.exportSlot(slot);
+    if (!text) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = `hogwarts-muhurlu-kule-${slot}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  _importSave(text) {
+    const ids = this.saves.slotIds.filter((s) => typeof s === 'number');
+    const free = this.saves.list().find((m) => m.empty && typeof m.slot === 'number')?.slot ?? ids[0];
+    const ok = this.saves.importSlot(free, text);
+    this.pauseMenu.status(ok ? `İçe aktarıldı: yuva ${free}` : 'Dosya geçerli bir kayıt değil.');
+  }
+
+  /** Back to the title screen (after an autosave). */
+  _toMainMenu() {
+    this.pauseMenu.close();
+    this.fsm.change('play');
+    this._autosave('Ana menüye dönüş');
+    setTimeout(() => {
+      this.flight.reset();
+      this.fsm.change('boot');
+    }, 60);
+  }
+
+  // ----------------------------------------------------------- map & UI
+
+  _bakeMap() {
+    if (this._groundsMap || this.room.id !== 'grounds') return;
+    this._groundsMap = bakeGrounds(this.room);
+    this.mapView.setGrounds(this._groundsMap);
+    this.minimap.setGrounds(this._groundsMap);
+  }
+
+  _applyUiSettings() {
+    const s = this.settings;
+    document.documentElement.style.setProperty('--ui-scale', String(s.get('uiScale')));
+    this.minimap?.setVisible(s.get('showMinimap'));
+  }
+
+  _friendsNearby() {
+    const list = [];
+    for (const c of this.social.companions.values()) {
+      if (c.mode === 'away') continue;
+      list.push({ name: c.spec.first, x: c.position.x, y: c.position.y, z: c.position.z, region: this.room.id, color: HOUSES[c.spec.house].secondary });
+    }
+    return list;
+  }
+
+  _mapSnapshot() {
+    const p = this.player.position;
+    return {
+      region: this.room.id,
+      player: { x: p.x, y: p.y, z: p.z, yaw: this.player.yaw },
+      quest: this.quests.tracker,
+      friends: this._friendsNearby(),
+      points: { grounds: this.mapState.points('grounds'), castle: this.mapState.points('castle') },
+      dangers: { grounds: this.mapState.dangers('grounds'), castle: this.mapState.dangers('castle') },
+      block: this.mapState.travelBlock(this),
+    };
+  }
+
+  /** Fast travel to a discovered place (any region). */
+  async _fastTravel(region, name) {
+    if (this.mapState.travelBlock(this) || !this.mapState.isKnown(region, name)) return;
+    this.fsm.change('play');
+    this.hud.fadeTo(1);
+    await new Promise((r) => setTimeout(r, 350));
+    if (region !== this.room.id && !(await this.switchRegion(region))) {
+      this.hud.fadeTo(0);
+      return;
+    }
+    const t = this.room.teleports.find((x) => x.name === name);
+    if (t) {
+      this.player.teleport(t.position, t.yaw);
+      this.cameraRig.snapTo(t.position, t.yaw);
+      this.room.onTeleport(t.position);
+    }
+    if (!this.fsm.is('play')) this.fsm.change('play');
+    this.hud.fadeTo(0);
+    this.hud.place(name, 'Hızlı yolculuk');
+  }
+
+  _profileHtml() {
+    const d = this.characterData;
+    const inv = this.inventory;
+    const ws = wandStats(d.wand);
+    const pct = (x) => `${x >= 0 ? '+' : ''}${Math.round(x * 100)}%`;
+    const st = this.housePoints.standings;
+    const rank = st.findIndex((h) => h.mine) + 1;
+    const spells = SPELL_WHEEL.map((id) => {
+      const locked = this.caster.locked.has(id);
+      const lvl = locked ? 0 : this.caster.level(id);
+      const pips = MASTERY.levels.map((_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('');
+      return `<tr><td>${SPELLS[id].name}</td><td>${locked ? '<em>öğrenilmedi</em>' : pips}</td></tr>`;
+    }).join('');
+    return `
+      <dl class="profile">
+        <div><dt>Ad</dt><dd>${d.firstName} ${d.lastName}</dd></div>
+        <div><dt>Bina</dt><dd>${HOUSES[d.house].label} · Kupada ${rank}. (${this.housePoints.points[this.housePoints.house]} puan)</dd></div>
+        <div><dt>Asa</dt><dd>${describeWand(d.wand)}</dd></div>
+        <div><dt>Asa etkisi</dt><dd>güç ${pct(ws.power)} · kontrol ${pct(ws.control)} · hız ${pct(ws.speed)} · odak ${pct(ws.focus)}</dd></div>
+        <div><dt>Kese</dt><dd>${inv.galleons} Galleon</dd></div>
+        <div><dt>Süpürge</dt><dd>${inv.broomSpec.name} (${inv.brooms.length} süpürge)</dd></div>
+        <div><dt>Oyun süresi</dt><dd>${Math.floor(this.playtime / 3600)} sa ${String(Math.floor(this.playtime / 60) % 60).padStart(2, '0')} dk</dd></div>
+        <div><dt>Hikâye</dt><dd>${this.quests.tracker?.name ?? (this.quests.flags.finished ? 'Tamamlandı' : '—')}</dd></div>
+      </dl>
+      <h3>Büyü ustalığı</h3><table class="mastery">${spells}</table>`;
+  }
+
+  _friendsHtml() {
+    return this.social.summary.map((f) => `
+      <div class="fr-card" style="--house:${f.color}">
+        <div class="fr-top"><b>${f.met ? f.name : '???'}</b><span>${f.house}</span></div>
+        <div class="fr-traits">${f.met ? f.traits : 'Henüz tanışmadınız.'}</div>
+        <div class="fr-level">${f.level} · ${f.affinity}/100<div class="fr-bar"><i style="transform:scaleX(${f.progress})"></i></div></div>
+        <div class="fr-where">${f.where}</div>${f.favour ? `<div class="fr-favour">${f.favour}</div>` : ''}
+      </div>`).join('');
+  }
+
+  _journalHtml() {
+    this.storyUi._renderJournal(this.quests.journal, this.housePoints.standings);
+    return this.storyUi.el.cup.outerHTML + this.storyUi.el.quests.outerHTML;
+  }
+
+  /** Room / region name banner when the player moves into a new one. */
+  _placeBanner() {
+    const room = this.room;
+    const key = room.id === 'castle' ? room.streamer?.playerCell : room.id;
+    if (!key || key === this._lastPlace) return;
+    const first = this._lastPlace === undefined;
+    this._lastPlace = key;
+    if (first || this.fsm.is('cinematic')) return;
+    if (room.id === 'castle') {
+      const c = INTERIOR.cells.find((x) => x.id === key);
+      if (c) this.hud.place(c.name);
+    } else this.hud.place(room.name);
   }
 
   /**
@@ -891,6 +1177,7 @@ class Game {
     this.flight.reset();
     this.inventory.deserialize(d.inventory);
     this.relationships.deserialize(d.social);
+    this.mapState.deserialize(d.map);
     if (d.story) {
       this.quests.deserialize(d.story.quests);
       this.housePoints.deserialize(d.story.house);
@@ -1206,6 +1493,7 @@ class Game {
       this.atmosphere.update(time.unscaledDt, gameHours, _focus.copy(this.player.visualPosition).setY(this.player.visualPosition.y + 1.5));
       this.hud.setClock(`${this.clock.format()} · ${this.atmosphere.weather.label}`);
       this.atmosphere.render();
+      if (this._thumbReq) this._captureThumb();
     }
     this.sound?.update(time.unscaledDt, this.camera);
     this.debug.update(time.unscaledDt * 1000, time.unscaledDt);
@@ -1235,6 +1523,11 @@ class Game {
     this.social.fixedUpdate(dt);
     this.lessons.fixedUpdate(dt);
     this.quests.update(dt);
+    this._discoverT = (this._discoverT ?? 0) - dt;
+    if (this._discoverT <= 0) {
+      this._discoverT = 0.5;
+      this.mapState.update(this.room, player.position);
+    }
     this.story.update(dt);
     this.match?.fixedUpdate(dt);
     this.triggers.update(c.position, c.height, c.radius);
@@ -1248,7 +1541,7 @@ class Game {
       this._autosaveTimer -= dt;
       if (this._autosaveTimer <= 0 && !player.dead) {
         this._autosaveTimer = GAME.autosaveInterval;
-        this.saves.save('auto', this.serialize(), 'Otomatik');
+        this._autosave('Otomatik');
       }
     }
   }
@@ -1282,8 +1575,10 @@ class Game {
     this.races.frame(dt);
     this.social.render(dt, env);
     this.lessons.render(dt, env);
+    this._placeBanner();
+    this.minimap.update({ region: this.room.id, player: { x: player.position.x, y: player.position.y, z: player.position.z, yaw: player.yaw }, quest: this.quests.tracker, friends: this._friendsNearby(), hidden: !this.fsm.is('play') });
     this.storyUi.update(dt, {
-      tracker: this.quests.tracker, lesson: this.lessons.hud, journal: this.quests.journal, standings: this.housePoints.standings,
+      tracker: this.settings.get('showTracker') ? this.quests.tracker : null, lesson: this.lessons.hud, journal: this.quests.journal, standings: this.housePoints.standings,
       camera: this.camera, width: this.renderer.width, height: this.renderer.height, player, region: this.room.id, hidden: !this.fsm.is('play'),
     });
     this.dialogueUi.update(dt);

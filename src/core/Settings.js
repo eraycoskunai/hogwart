@@ -2,6 +2,7 @@
  * @file Settings — user preferences persisted in localStorage, broadcast via EventBus.
  */
 import { DEFAULT_SETTINGS, SETTING_RANGES, SPEECH_MODES } from '../data/settings.js';
+import { UI_SCALES } from '../data/ui.js';
 import { QUALITY_PRESETS } from '../data/quality.js';
 import { SafeStorage } from './SaveSystem.js';
 
@@ -39,6 +40,7 @@ export class Settings {
     }
     if (!Number.isFinite(v.renderScale) || v.renderScale <= 0) v.renderScale = DEFAULT_SETTINGS.renderScale;
     if (!(v.speech in SPEECH_MODES)) v.speech = DEFAULT_SETTINGS.speech;
+    if (!UI_SCALES.includes(v.uiScale)) v.uiScale = DEFAULT_SETTINGS.uiScale;
   }
 
   save() {
