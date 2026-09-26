@@ -18,6 +18,10 @@ python3 -m http.server 8000
 Sonra tarayıcıda `http://localhost:3000` (veya 8000) adresini aç. Three.js `0.160.0` ve cannon-es `0.20.0`
 import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet bağlantısı gerekir.
 
+**Yayınlama (hosting):** geliştirmede build yok; ama internette ~200 ayrı modülü tek tek yüklemek yavaş olduğu için
+`npm i -D esbuild && npm run build` oyunu `dist/` klasörüne tek bir küçültülmüş pakete toplar (`dist/index.html`,
+`main.js`, `texture.worker.js`, `styles.css`). Herhangi bir statik sunucuya yalnızca `dist/` klasörünü koymak yeterli.
+
 ## Kontroller
 
 | Eylem | Klavye / Fare | Gamepad |
