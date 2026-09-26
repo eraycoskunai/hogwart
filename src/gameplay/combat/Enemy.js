@@ -164,6 +164,7 @@ export class Enemy {
         this.lastSeen = this.mgr.player.position.clone();
         this.lastSeenTime = this.time;
         if (!was) {
+          this.mgr.bus.emit('combat:spotted', { enemy: this });
           this.squad?.alert(this, this.lastSeen);
           this.onSpotted?.();
         }
@@ -476,6 +477,7 @@ export class Enemy {
    */
   startAction(a) {
     this.action = { ...a, t: 0, struck: false };
+    this.mgr.bus.emit('combat:windup', { enemy: this, name: a.name, telegraph: !!a.telegraph });
     if (a.telegraph) this.action.tg = this.mgr.telegraphs.show(a.telegraph.shape, a.telegraph.pos ?? this.position.clone(), { ...a.telegraph, windup: a.windup });
     a.onStart?.(this);
   }
@@ -492,6 +494,7 @@ export class Enemy {
     if (!a.struck && a.t < a.windup) a.onWindup?.(this, a.t / a.windup, dt);
     if (!a.struck && a.t >= a.windup) {
       a.struck = true;
+      this.mgr.bus.emit('combat:strike', { enemy: this, name: a.name });
       a.onStrike(this);
     } else if (a.struck && a.onActive && a.t < a.windup + (a.active ?? 0)) a.onActive(this, a.t - a.windup, dt);
     if (a.t >= a.windup + (a.active ?? 0) + a.recovery) this.action = null;

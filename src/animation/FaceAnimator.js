@@ -12,6 +12,13 @@ const VOWELS = new Set(['a', 'e', 'ı', 'i', 'o', 'ö', 'u', 'ü']);
 const FACE_KEYS = HEAD_MORPHS.filter((k) => !k.startsWith('blink'));
 
 export class FaceAnimator {
+  /**
+   * Speech hook (set by the game): (character, text, rate) → the voice synth
+   * plays the line in sync with the lip movement.
+   * @type {((character:any, text:string, rate:number) => void)|null}
+   */
+  static onSay = null;
+
   /** @param {import('../procgen/characters/Character.js').Character} character */
   constructor(character) {
     this.character = character;
@@ -44,7 +51,7 @@ export class FaceAnimator {
   }
 
   /**
-   * Lip-sync a line of text (visual only; audio comes with the sound engine).
+   * Lip-sync a line of text and voice it (FaceAnimator.onSay).
    * @param {string} text
    * @param {number} [rate] syllable speed multiplier
    */
@@ -63,6 +70,7 @@ export class FaceAnimator {
     this._visemes = seq;
     this._visemeTime = 0;
     this.talking = true;
+    FaceAnimator.onSay?.(this.character, text, rate);
   }
 
   /** @param {number} dt */

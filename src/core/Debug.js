@@ -9,6 +9,7 @@ import { SPELLS, SPELL_WHEEL } from '../data/spells.js';
 import { ENEMIES } from '../data/combat.js';
 import { RACES } from '../data/flight.js';
 import { COMPANIONS } from '../data/companions.js';
+import { MOODS } from '../data/music.js';
 
 /** Animation test buttons: [clip, label, looping toggle]. */
 const ANIM_BUTTONS = Object.freeze([
@@ -90,6 +91,10 @@ export class Debug {
         <div class="dbg-buttons">${SPELL_WHEEL.map((k) => `<button data-dbg-spell="${k}">${SPELLS[k].name.split(' ')[0]}</button>`).join('')}</div>
         <div class="dbg-buttons"><button data-dbg-act="masterAll">Tümünde usta ol</button><button data-dbg-act="clearSpells">Efektleri temizle</button></div>
       </div>
+      <div class="dbg-section"><h4>Ses ve müzik</h4>
+        <div class="dbg-buttons"><button data-dbg-mood="auto">Müzik: otomatik</button>${Object.keys(MOODS).map((k) => `<button data-dbg-mood="${k}">${k}</button>`).join('')}</div>
+        <div class="dbg-buttons">${['explosion', 'castPatronus', 'trollRoar', 'howl', 'fanfare', 'doorOpen', 'chime', 'thunder'].map((k) => `<button data-dbg-sound="${k}">${k}</button>`).join('')}<button data-dbg-act="speech">Konuşma testi</button></div>
+      </div>
       <div class="dbg-section"><h4>Dostlar</h4>
         <div class="dbg-buttons">${Object.entries(COMPANIONS).map(([k, c]) => `<button data-dbg-summon="${k}">${c.first}: çağır</button>`).join('')}</div>
         <div class="dbg-buttons"><button data-dbg-act="friendship">Herkese +20 yakınlık</button><button data-dbg-act="stopFollow">Takibi bitir</button><button data-dbg-act="friends">Dostlar listesi</button></div>
@@ -129,6 +134,8 @@ export class Debug {
       else if (b.dataset.dbgEnemy) this.p.actions.enemy(b.dataset.dbgEnemy);
       else if (b.dataset.dbgRace) this.p.actions.race(b.dataset.dbgRace);
       else if (b.dataset.dbgSummon) this.p.actions.summon(b.dataset.dbgSummon);
+      else if (b.dataset.dbgMood) this.p.actions.mood(b.dataset.dbgMood);
+      else if (b.dataset.dbgSound) this.p.actions.sound(b.dataset.dbgSound);
       else if (b.dataset.dbgAnim) this.p.actions.anim(b.dataset.dbgAnim, b.dataset.dbgLoop === '1');
       else if (b.dataset.dbgExpr) this.p.actions.expression(b.dataset.dbgExpr);
       else if (b.dataset.dbgHouse) this.p.actions.house(b.dataset.dbgHouse);

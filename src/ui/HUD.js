@@ -174,6 +174,7 @@ export class HUD {
    * @param {string} text
    */
   say(speaker, text) {
+    if (this.subtitles === false) return;
     this.el.sayName.textContent = speaker;
     this.el.sayText.textContent = text;
     this.el.say.classList.add('show');

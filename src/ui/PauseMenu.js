@@ -4,7 +4,7 @@
  */
 import { ACTIONS, describeCode } from '../data/input.js';
 import { QUALITY_PRESETS, QUALITY_ORDER, RENDER_SCALES } from '../data/quality.js';
-import { SETTING_RANGES, DIFFICULTIES } from '../data/settings.js';
+import { SETTING_RANGES, DIFFICULTIES, SPEECH_MODES } from '../data/settings.js';
 
 const TABS = [
   ['game', 'Oyun'],
@@ -126,7 +126,12 @@ export class PauseMenu {
     const rows = Object.entries(VOLUME_LABELS).map(([k, label]) =>
       `<label class="row">${label} <span><input type="range" data-volume="${k}" min="0" max="1" step="0.05" value="${v[k]}"><output>${Math.round(v[k] * 100)}%</output></span></label>`,
     ).join('');
-    return `${rows}<p class="note">Ses motoru Faz 11'de devreye girer; ayarlar şimdiden kaydedilir.</p>`;
+    const s = this.o.settings.values;
+    const speech = Object.entries(SPEECH_MODES).map(([k, l]) => `<option value="${k}" ${s.speech === k ? 'selected' : ''}>${l}</option>`).join('');
+    return `${rows}
+      <label class="row">Karakter konuşması <select data-setting="speech">${speech}</select></label>
+      <label class="row">Altyazılar <input type="checkbox" data-setting="showSubtitles" ${s.showSubtitles ? 'checked' : ''}></label>
+      <p class="note">Tüm sesler ve müzik gerçek zamanlı sentezlenir; ilk tıklamada ses motoru açılır.</p>`;
   }
 
   _onClick(e) {

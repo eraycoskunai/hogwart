@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 10 — Dostlar, diyalog, yakınlık, NPC rutinleri** (Faz 1–9 tamam)
+> **Durum: Faz 11 — Ses motoru, efektler, uyarlanır müzik, konuşma** (Faz 1–10 tamam)
 
 ## Çalıştırma
 
@@ -351,6 +351,35 @@ Dört özgün sınıf arkadaşı var; her birinin kişiliği, günlük rutini, s
 - **Ricalar**: Elif — bir yarışta altın madalya; Deniz — Yasak Bölüm'ün iki zırhını alt et; Mert — Düello Kulübü'nde
   üçüncü rakibe yüksel; Nehir — bir Quidditch maçı kazan. Tamamlayınca haber ver: +20 yakınlık ve Galleon ödülü.
 
+## Ses ve müzik (Faz 11)
+
+Hiçbir ses dosyası yok: her efekt, ortam sesi, müzik notası ve konuşma Web Audio ile **gerçek zamanlı sentezlenir**.
+Tarayıcı kuralları gereği ses motoru ilk tıklamada / tuşa basışta açılır.
+
+- **Motor** (`src/audio/AudioEngine.js`): ses kanalları (müzik, efekt, ortam, konuşma, arayüz) → ana ses → kompresör;
+  her ses için HRTF 3B konumlandırma (kamera dinleyicidir), bölgeye göre üretilen yankı (şato içinde uzun taş yankısı,
+  arazide kısa ve açık), diyalogda ve menüde müziğin kısılması, ses sınırı (en eskiler kesilir).
+- **Sentez tarifleri** (`src/data/sounds.js`): 60'tan fazla efekt katmanlı tariflerden üretilir — osilatör ya da beyaz/
+  pembe/kahverengi gürültü, zarf, frekans ve filtre süpürmeleri, vibrato, tremolo, rastgele tekrarlar. Adımlar zemine göre
+  (taş, çim, ahşap, metal, su) yürüyüş döngüsüyle eşzamanlı; zıplama, iniş, yuvarlanma, yüzme; her büyü türünün kendi sesi
+  (ateş gürlemesi, buz çınlaması, sersemletme vızıltısı, itme gümlemesi, Patronus korosu), kalkan ve savuşturma çınlaması,
+  patlama, kırılma, onarım; düşmanlar (trol kükremesi, yere vurma, örümcek cırıltısı, kurt adam uluması, zırh
+  şıngırtısı, peri kıkırtısı, Solgun fısıltısı, boss kükremesi), saldırı uyarıları, sersemleme, bitirici; süpürge rüzgârı
+  (hızla yükselir), takviye, çarpma, halka, düdük, tezahürat, Bludger, Altın Top kanat çırpışı; kapı gıcırtısı, hareketli
+  merdiven, gök gürültüsü, saat kulesi çanı (07, 12, 18, 22), gündüz kuşlar, gece baykuş; Galleon şıngırtısı, rütbe,
+  geri sayım, fanfar; canın azalınca kalp atışı.
+- **Ortam sesleri**: rüzgâr (hava durumu ve irtifaya göre), yağmur, gece cırcır böcekleri, göl suyu, şato oda sesi,
+  Büyük Salon kalabalık uğultusu, Solgun aurası.
+- **Uyarlanır müzik** (`src/audio/MusicDirector.js`, `src/data/music.js`): üretken bir besteci ölçü ölçü, ses saatinde
+  ileriye doğru nota planlar. Ruh hâlleri: menü (3/4 vals), arazi-gündüz (pastoral), gece, şato (gizemli), sohbet, savaş,
+  boss (koro ve pirinç), düello, uçuş, Quidditch (şenlikli). Her biri kendi tempo, dizi ve akor ilerleyişiyle çalar;
+  pad, arpej, ostinato, bas, perküsyon ve özgün motiflerden örülen melodi katmanları vardır. Oyun durumuna göre
+  (düşman görünce savaş, boss, uçuş, maç, gece…) 3 saniyelik geçişle değişir.
+- **Konuşma** (`src/audio/Voice.js`): karakterler konuştuğunda (diyalog, düello hocası, satıcı, savaş sözleri) metindeki
+  Türkçe ünlüler (a, e, ı, i, o, ö, u, ü) sırayla formant filtreleriyle seslendirilir — dudak senkronuyla aynı anda;
+  her karakterin adından türeyen kendine özgü ses perdesi, cümle sonunda düşen (soruda yükselen) tonlama. Ayarlar →
+  Ses → *Karakter konuşması*: Mırıldanma / Tarayıcı sesi (Türkçe TTS) / Kapalı. Altyazılar açılıp kapatılabilir.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
@@ -363,6 +392,8 @@ oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; 
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 **Büyüler** bölümü: büyüyü seçme düğmeleri, sınırsız odak anahtarı, tüm büyülerde usta olma, efektleri temizleme; odak,
 mermi, kırık nesne, buz tabakası ve partikül istatistikleri.
+**Ses ve müzik** bölümü: müzik ruh hâlini zorlama (veya otomatik), örnek efektler, konuşma testi; ses motoru durumu,
+anlık/döngü/toplam ses sayısı, yankı, çalan ruh hâli, ölçü ve nota sayısı, konuşma kipi.
 **Dostlar** bölümü: her dostu önüne çağırma, herkese +20 yakınlık, takibi bitirme, dostlar listesi; dostların durumu
 (yerde/yürüyor/takipte), yakınlık değerleri, saat; varlıklar listesinde her dostun rutin yeri.
 **Uçuş** bölümü: süpürgeye bin/in, tüm süpürgeler, sonraki süpürge, +100 Galleon, her yarışı başlatma, Quidditch maçı, Altın
@@ -404,7 +435,9 @@ src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden i
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
 src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, DialogueUI, FriendsPanel, PauseMenu, GalleryPanel, CharacterCreator, styles.css
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, test salonu, arazi, şato, şato içi, bitki örtüsü
+src/audio/            AudioEngine (kanallar, yankı, 3B), Synth (tarif → Web Audio), SoundDirector (olay → ses, ortam, adımlar),
+                      MusicDirector (üretken, uyarlanır müzik), Voice (sentez konuşma / TTS)
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, dostlar, diyaloglar, sesler, müzik, test salonu, arazi, şato, şato içi, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -422,7 +455,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 8. ✅ Savaş, düşmanlar, yapay zekâ, düello, boss
 9. ✅ Süpürge dükkânı, uçuş, yarışlar, Quidditch
 10. ✅ Dostlar, diyalog, yakınlık, NPC rutinleri
-11. Ses motoru, SFX, adaptif müzik, konuşma
+11. ✅ Ses motoru, SFX, adaptif müzik, konuşma
 12. Hikâye, görevler, dersler, bina puanları, açılış sekansı
 13. Arayüz cilası, menüler, harita, kayıt sistemi
 14. Optimizasyon, denge, son cila

@@ -49,6 +49,11 @@ import { SocialManager } from './gameplay/social/SocialManager.js';
 import { DialogueUI } from './ui/DialogueUI.js';
 import { FriendsPanel } from './ui/FriendsPanel.js';
 import { COMPANIONS } from './data/companions.js';
+import { AudioEngine } from './audio/AudioEngine.js';
+import { MusicDirector } from './audio/MusicDirector.js';
+import { Voice } from './audio/Voice.js';
+import { SoundDirector } from './audio/SoundDirector.js';
+import { FaceAnimator } from './animation/FaceAnimator.js';
 import { COMBAT, BOSS } from './data/combat.js';
 import { SPELL_WHEEL, MASTERY } from './data/spells.js';
 import { describeCode } from './data/input.js';
@@ -128,6 +133,10 @@ class Game {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(this.settings.get('fov'), this.renderer.aspect, CAMERA.near, preset.drawDistance);
     this.input = new Input(bus, this.canvas, this.settings);
+    // Sound: the context opens on the first click / key press.
+    this.audio = new AudioEngine(bus, this.settings);
+    this.music = new MusicDirector(this.audio);
+    this.voice = new Voice(this.audio, this.settings);
 
     // Procedural materials: generated in workers, cached in IndexedDB.
     this.textureFactory = new TextureFactory(bus, { version: TEXTURE_GEN_VERSION, dbName: TEXTURE_CACHE_DB, maxWorkers: MAX_TEXTURE_WORKERS });
@@ -218,6 +227,16 @@ class Game {
     this._progress('Arayüz yükleniyor…', 0.9);
     await nextFrame();
     this.hud = new HUD(document.getElementById('hud'), bus, this.input);
+    this.hud.subtitles = this.settings.get('showSubtitles');
+    bus.on('settings:changed', ({ key }) => {
+      if (key === 'showSubtitles' || key === '*') this.hud.subtitles = this.settings.get('showSubtitles');
+      if (key === 'speech') this.voice.hush();
+    });
+    this.sound = new SoundDirector({ engine: this.audio, music: this.music, voice: this.voice, bus, player: this.player, game: this });
+    FaceAnimator.onSay = (character, text, rate) => {
+      if (character === this.player.character) return;
+      this.voice.speak(character.root.name, text, { pos: character.root.getWorldPosition(new THREE.Vector3()), rate });
+    };
     this.spellHud = new SpellHUD(document.getElementById('hud'), bus);
     this.combatHud = new CombatHUD(document.getElementById('hud'), bus);
     this.flightHud = new FlightHUD(document.getElementById('hud'), bus);
@@ -887,6 +906,7 @@ class Game {
             'Dinamik (uyanık)': `${p.dynamics} (${p.awake})`,
             Kinematik: p.kinematics,
           },
+          Ses: this.sound.stats,
           Dostlar: { ...this.social.stats, Saat: this.clock.format() },
           Uçuş: { ...this.flight.stats, ...this.races.stats, ...(this.match?.stats ?? {}), Kese: `${this.inventory.galleons} Galleon · süpürgeler: ${this.inventory.brooms.map((b) => BROOMS[b].name).join(', ')}` },
           Savaş: { Zorluk: this.settings.get('difficulty'), ...this.combat.stats, ...(this.duel?.stats ?? {}), 'Oyuncu durumu': `sersem ${fmt(this.player.stunned, 1)} · yavaş ${fmt(this.player.slowed, 1)} · kaçınma ${fmt(this.player.dodging, 2)}` },
@@ -929,6 +949,11 @@ class Game {
         },
         broom: () => this.flight.toggle(),
         summon: (id) => this.social.summon(id),
+        mood: (m) => {
+          this.sound.forced = m === 'auto' ? null : m;
+        },
+        sound: (name) => this.audio.play(name, { pos: this.player.position.clone().add(new THREE.Vector3(3, 1, 0)) }),
+        speech: () => this.voice.speak('Deneme Sesi', `Merhaba ${this.characterData.firstName}! Bu ses tamamen sentezleniyor, duyabiliyor musun?`),
         friendship: () => {
           for (const id of Object.keys(COMPANIONS)) this.relationships.add(id, 20);
         },
@@ -1106,6 +1131,7 @@ class Game {
       this.hud.setClock(`${this.clock.format()} · ${this.atmosphere.weather.label}`);
       this.atmosphere.render();
     }
+    this.sound?.update(time.unscaledDt, this.camera);
     this.debug.update(time.unscaledDt * 1000, time.unscaledDt);
     this.input.endFrame();
   }

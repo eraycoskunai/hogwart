@@ -131,6 +131,7 @@ export class SpellSystem {
     };
     this.trails.push(p.trail, p.pos);
     this.projectiles.push(p);
+    this.bus.emit('spell:launched', { id: o.id, spell, owner: p.owner, pos: o.from });
     // Muzzle burst at the wand.
     this.glow.burst(10, o.from, { speed: [0.5, 2], life: 0.25, size: 0.12, color: spell.color, dir: o.dir, spread: 0.8 });
     return p;
@@ -332,6 +333,7 @@ export class SpellSystem {
 
   _impactBurst(p, point, normal) {
     const S = p.spell;
+    this.bus.emit('spell:burst', { id: p.id, spell: S, pos: point });
     const n = normal ?? UP;
     if (S.element === 'fire') {
       this.glow.burst(26, point, { speed: [1, 4], life: 0.5, size: 0.3, endSize: 0.05, color: '#ffc060', endColor: '#ff2000', dir: n, spread: 1, lift: 1, drag: 2 });
@@ -501,6 +503,7 @@ export class SpellSystem {
 
   _shatterBody(body, cause, silent = false) {
     if (!this.breakable(body) || this.broken.some((b) => b.body === body)) return false;
+    this.bus.emit('spell:shatter', { pos: body.body.position, cause });
     const st = this._status(body);
     this._unfreezeBody(body, st, false);
     st.burning = 0;
@@ -598,6 +601,7 @@ export class SpellSystem {
    * @param {THREE.Vector3} point
    */
   explode(point, spell, power, id, direct) {
+    this.bus.emit('spell:explosion', { pos: point, power });
     const R = spell.blast;
     // Combos on whatever was hit directly (frozen → shatter).
     for (const [body, st] of this.bodyStatus) {

@@ -13,6 +13,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   showSubtitles: true,
   difficulty: 'normal',
   volume: { master: 0.8, music: 0.7, sfx: 0.9, ambience: 0.7, voice: 0.9 },
+  /** Character speech: synthetic babble, the browser's Turkish voice, or none. */
+  speech: 'babble',
   /** Post-processing opt-outs (only effective when the quality preset enables them). */
   fx: { bloom: true, ao: true, godRays: true, dust: true },
   /** Per-action overrides of keyboard bindings, e.g. { jump: ['Space', null] } */
@@ -25,6 +27,8 @@ export const SETTING_RANGES = Object.freeze({
   mouseSensitivity: { min: 0.1, max: 3, step: 0.05 },
   gamepadSensitivity: { min: 0.2, max: 3, step: 0.05 },
 });
+
+export const SPEECH_MODES = Object.freeze({ babble: 'Mırıldanma (sentez)', tts: 'Tarayıcı sesi (Türkçe TTS)', off: 'Kapalı' });
 
 export const DIFFICULTIES = Object.freeze({
   story: { label: 'Hikâye', damageTaken: 0.5 },
