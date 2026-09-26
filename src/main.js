@@ -945,10 +945,10 @@ class Game {
       const finish = (thumb) => {
         if (done) return;
         done = true;
-        this._thumbReq = null;
+        this._thumbReqs = this._thumbReqs.filter((f) => f !== finish);
         resolve(fn(thumb));
       };
-      this._thumbReq = finish;
+      (this._thumbReqs ??= []).push(finish);
       setTimeout(() => finish(null), 1500);
     });
   }
@@ -964,7 +964,7 @@ class Game {
     } catch {
       url = null;
     }
-    this._thumbReq?.(url);
+    for (const f of [...(this._thumbReqs ?? [])]) f(url);
   }
 
   /** Where the player is, for save cards. */
@@ -1493,7 +1493,7 @@ class Game {
       this.atmosphere.update(time.unscaledDt, gameHours, _focus.copy(this.player.visualPosition).setY(this.player.visualPosition.y + 1.5));
       this.hud.setClock(`${this.clock.format()} · ${this.atmosphere.weather.label}`);
       this.atmosphere.render();
-      if (this._thumbReq) this._captureThumb();
+      if (this._thumbReqs?.length) this._captureThumb();
     }
     this.sound?.update(time.unscaledDt, this.camera);
     this.debug.update(time.unscaledDt * 1000, time.unscaledDt);

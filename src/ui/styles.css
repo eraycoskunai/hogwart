@@ -81,6 +81,8 @@ button.primary {
 #boot.gone { opacity: 0; pointer-events: none; }
 .boot-card {
   width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 24px);
+  overflow: auto;
   padding: 34px 38px 26px;
   text-align: center;
 }
@@ -100,11 +102,12 @@ button.primary {
 .boot-progress { height: 6px; border-radius: 3px; background: rgba(60, 40, 15, 0.25); overflow: hidden; }
 .boot-progress i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #8a1f1a, var(--gold)); transition: width 0.3s; }
 .boot-status { font-size: 13px; color: var(--ink-soft); min-height: 1.2em; }
-.boot-buttons { display: flex; gap: 12px; justify-content: center; margin: 16px 0 12px; visibility: hidden; }
+.boot-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 16px 0 12px; visibility: hidden; }
 #boot.ready .boot-buttons { visibility: visible; }
 #boot.ready .boot-progress, #boot.ready .boot-status { display: none; }
 #boot.error .boot-status { color: var(--blood); display: block; }
 .boot-buttons button { min-width: 140px; font-size: 17px; padding: 9px 18px; }
+.boot-buttons button.primary { flex-basis: 100%; }
 #loading {
   position: fixed;
   inset: 0;
