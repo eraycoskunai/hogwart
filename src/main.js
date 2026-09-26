@@ -338,6 +338,7 @@ class Game {
       boot: {
         enter: (g) => {
           g.input.gameplayEnabled = false;
+          g.input.exitPointerLock();
           g.hud.setVisible(false);
           g.bootEl.classList.remove('gone');
           g.bootEl.classList.add('ready');
