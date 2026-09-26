@@ -24,6 +24,9 @@ const _to = new THREE.Vector3();
 const _fwd = new THREE.Vector3();
 const _frustum = new THREE.Frustum();
 const _pm = new THREE.Matrix4();
+/** _fight result: moving for a clear line of sight this step. */
+const BLOCKED = 'blocked';
+const _hit = { distance: 0, point: new THREE.Vector3(), normal: new THREE.Vector3(), collider: null };
 
 function angleDelta(a, b) {
   return THREE.MathUtils.euclideanModulo(b - a + Math.PI, Math.PI * 2) - Math.PI;
@@ -212,6 +215,7 @@ export class Companion {
       return;
     }
     const foe = this._fight(dt, env);
+    if (foe === BLOCKED) return;
     if (foe) {
       c.step(dt, _to.set(0, 0, 0), 0);
       this._faceTo(foe.position, dt, 10);
@@ -235,7 +239,7 @@ export class Companion {
     if (_to.lengthSq() > 1e-4) this.yaw += angleDelta(this.yaw, Math.atan2(-_to.x, -_to.z)) * (1 - Math.exp(-rate * dt));
   }
 
-  /** Fight beside the player. @returns {any} the foe being fought, or null */
+  /** Fight beside the player. @returns {any} the foe being fought, BLOCKED, or null */
   _fight(dt, env) {
     const C = COMPANION.combat;
     const player = env.player;
@@ -261,6 +265,19 @@ export class Companion {
       }
     }
     if (!foe) return null;
+    // Blocked view (columns, doorways): step sideways instead of wasting a spell.
+    const eye = this.headPoint(_v);
+    const aim = foe.center(_to);
+    const len = eye.distanceTo(aim);
+    _fwd.subVectors(aim, eye).divideScalar(len);
+    if (this.ctx.physics.raycast(eye, _fwd, len - 0.8, { dynamic: false, kinematic: false }, _hit)) {
+      this._sidestep = this._sidestep ?? (this.rnd() < 0.5 ? -1 : 1);
+      _fwd.set(-_fwd.z * this._sidestep, 0, _fwd.x * this._sidestep).normalize();
+      this.controller.step(dt, _fwd, COMPANION.follow.walk * 1.5);
+      this.speed = Math.hypot(this.controller.velocity.x, this.controller.velocity.z);
+      return BLOCKED;
+    }
+    this._sidestep = null;
     this._cast -= dt;
     if (this._cast <= 0) {
       const [a, b] = C.castEvery;
