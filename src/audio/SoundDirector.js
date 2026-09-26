@@ -57,7 +57,11 @@ export class SoundDirector {
     const at = (p) => (p ? { x: p.x, y: p.y, z: p.z } : null);
     const play = (name, opts) => this.E.play(name, opts);
     this._offs = [
-      on('audio:ready', () => this._startBeds()),
+      on('audio:ready', () => {
+        // The first click can come after the region loaded: apply its space now.
+        if (o.game.room) this.E.setRegion(o.game.room.id);
+        this._startBeds();
+      }),
       on('region:loaded', ({ id }) => {
         this.E.setRegion(id);
         this.E.stopAll();
