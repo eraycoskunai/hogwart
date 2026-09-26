@@ -154,7 +154,7 @@ export const QUIDDITCH = Object.freeze({
   countdown: 3,
   /** Air volume above the pitch: min / max height over the ground. */
   air: [1.5, 34],
-  teamSize: { chasers: 3, beaters: 2, keeper: 1, seeker: 1 },
+  teamSize: { chaser: 3, beater: 2, keeper: 1, seeker: 1 },
   goal: 10,
   snitchPoints: 150,
   /** Snitch appears after this many seconds (random in range). */
@@ -162,11 +162,11 @@ export const QUIDDITCH = Object.freeze({
   snitch: { cruise: [5, 11], dart: 23, dartEvery: [3, 7], dartTime: [0.4, 1], catchRadius: 1.5, visibleRange: 70, glint: 0.8, tired: 300, tiredSpeed: 0.6 },
   quaffle: { gravity: 6, throwSpeed: 24, shootRange: 20, tackle: 0.9, tackleRange: 2.4, grab: 2 },
   bludger: { speed: 16, retarget: [3, 6], hitRadius: 1.3, damage: 12, knock: 1.6, beaterHit: 3.2, beaterSpeed: 26 },
-  keeper: { save: 0.45, reach: 2.2 },
+  keeper: { save: 0.6, reach: 2.2 },
   /** AI flyer speeds (m/s). */
   speeds: { chaser: 17, beater: 15, keeper: 12, seeker: 16 },
-  /** Rival Seeker: speed and reaction by difficulty. */
-  rival: { story: { speed: 12, reaction: 3 }, normal: { speed: 15.5, reaction: 1.6 }, hard: { speed: 19, reaction: 0.7 } },
+  /** Rival Seeker by difficulty: speed, reaction (s in sight before chasing), catch chance per second within reach. */
+  rival: { story: { speed: 12, reaction: 3, grip: 0.35 }, normal: { speed: 15.5, reaction: 1.6, grip: 0.8 }, hard: { speed: 19, reaction: 0.7, grip: 1.8 } },
   reward: { win: 80, lose: 20 },
   /** Pitch hoops (mirrors PITCH): distance of the hoop line from the centre. */
   hoopInset: 8,

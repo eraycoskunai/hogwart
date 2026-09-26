@@ -336,7 +336,8 @@ export class QuidditchMatch {
     const s = this.snitch;
     if (s.out && s.seenBy > this.rival.reaction) {
       this._steer(fl, s.pos, this.rival.speed, dt, 0.1);
-      if (fl.pos.distanceTo(s.pos) < Q.snitch.catchRadius) this._catch(1);
+      // Close is not caught: the grab can slip.
+      if (fl.pos.distanceTo(s.pos) < Q.snitch.catchRadius * 1.5 && Math.random() < this.rival.grip * dt) this._catch(1);
     } else {
       const a = this.t * 0.25 + fl.idx;
       _t.set(this.center.x + Math.cos(a) * 30, this.center.y + Q.air[1] - 4, this.center.z + Math.sin(a) * 18);
