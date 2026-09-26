@@ -568,6 +568,49 @@ export class CharacterController {
   }
 
   /**
+   * Flying (broom): move by `velocity`·dt with collision but no gravity,
+   * stepping or grounding logic. Velocity is clipped against what we hit.
+   * @param {number} dt
+   * @param {THREE.Vector3} velocity (modified: clipped)
+   * @returns {{grounded:boolean, hitWall:boolean, ceiling:boolean, impact:number}} impact = speed lost into surfaces (m/s)
+   */
+  flyStep(dt, velocity) {
+    this.prevPosition.copy(this.position);
+    this.events.length = 0;
+    this.yawDelta = 0;
+    this.stepOffset = 0;
+    this.velocity.copy(velocity);
+    const st = resetState(this._st);
+    const test = this._test.copy(this.position);
+    this._move(test, this._delta.copy(velocity).multiplyScalar(dt), st, velocity.y > 0);
+    this.position.copy(test);
+    // Speed lost against walls / ground / ceiling.
+    const before = velocity.length();
+    for (let i = 0; i < st.wallCount; i++) {
+      const n = st.walls[i];
+      const d = velocity.x * n.x + velocity.z * n.z;
+      if (d < 0) {
+        velocity.x -= n.x * d;
+        velocity.z -= n.z * d;
+      }
+    }
+    if (st.grounded && velocity.y < 0) velocity.y = 0;
+    if (st.ceiling && velocity.y > 0) velocity.y = 0;
+    const impact = Math.max(0, before - velocity.length());
+    this.velocity.copy(velocity);
+    this.grounded = st.grounded;
+    this.groundCollider = st.groundCollider;
+    this.groundNormal.copy(st.grounded ? st.groundNormal : UP);
+    this.onSteepSlope = false;
+    this.swimming = false;
+    this.crouching = false;
+    this.height = this.cfg.height;
+    this.airPeakY = this.position.y;
+    this.jumpBufferTimer = 0;
+    return { grounded: st.grounded, hitWall: st.hitWall, ceiling: st.ceiling, impact };
+  }
+
+  /**
    * Interpolated feet position for rendering.
    * @param {number} alpha
    * @param {THREE.Vector3} out

@@ -3,7 +3,7 @@
 Tarayıcıda çalışan, üçüncü şahıs kameralı, 3D bir Harry Potter hayran RPG'si (kişisel kullanım).
 Hiçbir harici asset yok: dokular, modeller, animasyonlar, efektler ve (ileride) sesler tamamen kodla üretilir.
 
-> **Durum: Faz 8 — Savaş, düşmanlar, yapay zekâ, Düello Kulübü, boss** (Faz 1–7 tamam)
+> **Durum: Faz 9 — Süpürge dükkânı, uçuş, yarışlar, Quidditch** (Faz 1–8 tamam)
 
 ## Çalıştırma
 
@@ -36,7 +36,8 @@ import map ile jsDelivr CDN'den yüklenir, bu yüzden ilk açılışta internet 
 | Büyü tekerleği (basılı tut, fareyle seç) | Q | LB |
 | Büyü değiştir | Fare tekerleği | — |
 | Jestle büyü çiz (basılı tut, fareyle çiz) | G / Fare 5 | RB |
-| Kaçın (yuvarlan, kısa dokunulmazlık) | F / Sol Alt | D-pad aşağı |
+| Kaçın (yuvarlan, kısa dokunulmazlık) / süpürgede takla | F / Sol Alt | D-pad aşağı |
+| Süpürgeye bin / in (havadayken atlarsın!) | B | D-pad yukarı |
 | Hızlı kayıt / yükleme | F5 / F9 | — |
 | Kontrol listesi | H | Back |
 | Menü | Esc / P | Start |
@@ -284,11 +285,46 @@ teslim olursun (düelloda ölmezsin). İlerleme kayda yazılır.
 sayım, "Savuşturma!", "Kalkan kırıldı!", bitirici uyarıları, oyuncu durumu (sersem / yavaş), Solgun buzlanması.
 Kilitlenme (Tab) artık düşmanları da hedefler.
 
+## Uçuş, yarışlar ve Quidditch (Faz 9)
+
+**Süpürgeyle uçmak** (yalnızca açık havada — arazide; B ile bin/in, düşerken de çağırabilirsin):
+- Süpürge **kameranın baktığı yöne** döner; dönüş hızı süpürgenin manevra değeriyle sınırlıdır. **W** gaz, **S** fren,
+  **A / D** yana kayma, **Boşluk / C** yüksel / alçal, **Shift** takviye (dayanıklılık çubuğu), **F** takla (kısa dokunulmazlık).
+- Fizik: hız yöne gecikmeyle uyar (kayma), dalışta hızlanır, tırmanışta yavaşlarsın; duvar ve zemin katıdır, sert çarpışmalar
+  can götürür, çok sert olanlar seni süpürgeden atar (yüksekten düşmek ölümcül olabilir). Suyun üzerinde kayarak su serpersin;
+  çok yükseğe çıkınca yumuşak bir tavan geri iter. Yere yavaşça alçalıp C'ye basılı tutunca kendiliğinden inersin.
+- Görsel: gövde öne eğilir, dönüşte yatar, havada hafifçe salınır; cübbe rüzgârda dalgalanır, kamera uzaklaşır, hızla birlikte
+  görüş açısı genişler ve hız çizgileri çıkar; takviyede süpürge kuyruğundan kıvılcımlar saçılır.
+
+**Süpürge dükkânı** — *Uçan Kuyruk Süpürgecisi*, Quidditch sahasının batısında (F3 → Işınlan → Süpürge dükkânı). Tezgâhın
+arkasındaki satıcıyla konuş (E). Beş özgün model (prosedürel sap, bağ halkaları, ayaklık ve tek tek bükülmüş çalı çöpleri):
+
+| Süpürge | Hız | İvme | Manevra | Fiyat |
+|---|---|---|---|---|
+| Okul süpürgesi | 16 | 7 | 1.4 | başlangıçta var |
+| Çalıkuşu 3 | 22 | 10 | 2.0 | 120 G |
+| Poyraz 90 | 27 | 13 | 2.2 | 260 G |
+| Yıldırımkuyruk | 32 | 16 | 2.6 | 420 G |
+| Gece Şahini Pro | 38 | 19 | 3.0 | 700 G |
+
+**Galleon** kazanmak: düşman yenmek (türe göre ödül; boss 250 G), düello kazanmak, yarış madalyaları, Quidditch maçları.
+Kese, süpürgeler ve rekorlar kayda yazılır.
+
+**Yarışlar** — üç parkur; başlangıç direğinde E: *Saha turu*, *Şato çevresi*, *Göl ve orman*. Geri sayım, sırayla geçilecek
+parlayan halkalar (sıradaki altın renkte nabız atar, ekranda mesafe işaretçisi), süre, altın/gümüş/bronz madalya süreleri.
+Daha iyi madalya Galleon kazandırır; en iyi koşu **hayalet** olarak kaydedilir ve sonraki denemede yanında uçar.
+
+**Quidditch** — sahanın girişindeki sarı direkte E: evinin **Arayıcısı** olarak rakip bir eve karşı oynarsın. 13 yapay zekâ
+oyuncu: Kovalayıcılar Quaffle'ı taşır, paslaşır, şut atar, rakibi tackle'la düşürür; Kaleciler üç halkayı korur; Vurucular
+Bludger'ları rakiplere — ve sana — vurur (F taklasıyla kaçın). Bir süre sonra **Altın Top** çıkar: kanat çırparak dolaşır,
+yakınlaşınca kaçar, ani atılışlar yapar; görüş alanındaysa ekranda işaretlenir. Rakip Arayıcı onu fark edince peşine düşer
+(hızı ve tepkisi zorluğa bağlı). Altın Top'u yakalayan 150 puan kazanır ve maç biter.
+
 ## Hata ayıklama (F3)
 
 FPS ve kare süresi grafiği, çizim çağrıları, üçgen/geometri/doku sayıları, bellek, fizik istatistikleri,
 oyuncu durumu (zemin açısı, hız, kilit), yapay zekâ ve platform durumları, çarpışma şekilleri görünümü,
-noclip, ölümsüzlük, zaman ölçeği, bölge değiştirme (arazi / şato içi / test salonu), bölgeye göre ışınlanma menüsü (arazide 12,
+noclip, ölümsüzlük, zaman ölçeği, bölge değiştirme (arazi / şato içi / test salonu), bölgeye göre ışınlanma menüsü (arazide 17,
 şato içinde 14 nokta), arazi LOD / ağaç / kaya / çimen istatistikleri; şato içinde yüklü/görünür oda, geçilen portal, akış kuyruğu,
 oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; sinematik/hasar/hit-stop/sarsıntı testleri.
 Çizim çağrıları ve üçgenler artık tüm kare boyunca (gölge ve efekt geçişleri dahil) sayılır.
@@ -296,6 +332,8 @@ oyuncu ve kamera odası, portre ve kapı sayıları, merdiven zaman çizelgesi; 
 otomatik hava, şimşek çaktırma; ışık havuzu, gölge ve hava istatistikleri.
 **Büyüler** bölümü: büyüyü seçme düğmeleri, sınırsız odak anahtarı, tüm büyülerde usta olma, efektleri temizleme; odak,
 mermi, kırık nesne, buz tabakası ve partikül istatistikleri.
+**Uçuş** bölümü: süpürgeye bin/in, tüm süpürgeler, sonraki süpürge, +100 Galleon, her yarışı başlatma, Quidditch maçı, Altın
+Top'u hemen salma, maçı bitirme; uçuş durumu (hız, yönelim, takviye, irtifa, çarpma), yarış ve maç durumu, kese.
 **Savaş** bölümü: her düşman türünü önüne çağırma, hepsini yok etme / sersemletme, boss'u sonraki aşamaya geçirme, düşman
 yapay zekâsı anahtarı; zorluk, karşılaşma alanlarının durumu, gezinme ızgarası boyutu, düello sırası ve oyuncu savaş durumu;
 varlıklar listesinde her düşmanın davranış ağacı durumu, canı, sersemletme ve farkındalık değeri.
@@ -319,18 +357,20 @@ src/physics/          Geometry (kapsül/üçgen/ışın testleri), Collider, Col
 src/gameplay/         Player (can, düşme hasarı, yeniden doğma, avatar), Student (arka plan öğrencileri), Ghost, Interaction,
                       spells/ (SpellCaster, SpellSystem, SpellTargets, Unistroke),
                       ai/ (BehaviorTree, NavGrid + A*, Squad), combat/ (EncounterManager, Enemy, EnemyTypes, SpiderQueen, DuelClub),
+                      flight/ (BroomFlight, BroomShop, RaceManager, QuidditchMatch), Inventory (Galleon, süpürgeler, rekorlar),
                       TargetDummy
 src/animation/        Clips (anahtar kare derleme, poz karıştırma), Animator (katmanlar), IK, FaceAnimator, ClothSim, GroundProbe
 src/procgen/          DevTextures (prototip dokular), StaticBatcher (dünya uzayı UV + çizim birleştirme),
                       geometry/CastleKit (şato modülleri), geometry/InteriorKit (iç mekân ve mobilya),
-                      geometry/TreeGenerator (ağaç, kaya), textures/PortraitPainter (portreler), creatures/EnemyModels
+                      geometry/TreeGenerator (ağaç, kaya), textures/PortraitPainter (portreler), creatures/EnemyModels,
+                      geometry/BroomKit (süpürgeler, uçan oyuncular, toplar)
 src/procgen/characters/ Character (montaj), Skeleton, HeadGenerator, HairGenerator, BodyGenerator, Garments + ClothGarment,
                       WandGenerator, CharacterTextures, Appearance, Hairline, MeshKit
 src/world/            GameClock, RegionManager, TestRoom, RoomBuilder (veriden iç mekân), Movers, MaterialGallery, CreatorStage
 src/world/grounds/    HogwartsGrounds (bölge), TerrainData, TerrainMesh, Castle, Vegetation, Props
 src/world/interior/   CastleInterior (bölge), CellBuilder, CellStreamer, Door, MovingStaircases, PortraitGallery
-src/ui/               HUD, SpellHUD, CombatHUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
-src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, test salonu, arazi, şato, şato içi, bitki örtüsü
+src/ui/               HUD, SpellHUD, CombatHUD, FlightHUD, PauseMenu, GalleryPanel, CharacterCreator, styles.css
+src/data/             tüm ayar sabitleri: oyun, fizik, kamera, girdi, kalite, ayarlar, atmosfer, karakter, animasyon, asa, büyüler, savaş, uçuş, test salonu, arazi, şato, şato içi, bitki örtüsü
 ```
 
 Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
@@ -346,7 +386,7 @@ Modüller birbirini doğrudan bilgilendirmez; olaylar `EventBus` üzerinden akar
 6. ✅ İç mekânlar, kapılar, hareketli merdivenler, portreler, hayaletler, streaming
 7. ✅ Büyü sistemi, efektler, jest tanıma
 8. ✅ Savaş, düşmanlar, yapay zekâ, düello, boss
-9. Süpürge dükkânı, uçuş, yarışlar, Quidditch
+9. ✅ Süpürge dükkânı, uçuş, yarışlar, Quidditch
 10. Dostlar, diyalog, yakınlık, NPC rutinleri
 11. Ses motoru, SFX, adaptif müzik, konuşma
 12. Hikâye, görevler, dersler, bina puanları, açılış sekansı

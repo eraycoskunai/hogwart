@@ -7,6 +7,7 @@ import { WEATHER_TYPES } from '../data/atmosphere.js';
 import { EXPRESSIONS, HOUSES } from '../data/character.js';
 import { SPELLS, SPELL_WHEEL } from '../data/spells.js';
 import { ENEMIES } from '../data/combat.js';
+import { RACES } from '../data/flight.js';
 
 /** Animation test buttons: [clip, label, looping toggle]. */
 const ANIM_BUTTONS = Object.freeze([
@@ -88,6 +89,11 @@ export class Debug {
         <div class="dbg-buttons">${SPELL_WHEEL.map((k) => `<button data-dbg-spell="${k}">${SPELLS[k].name.split(' ')[0]}</button>`).join('')}</div>
         <div class="dbg-buttons"><button data-dbg-act="masterAll">Tümünde usta ol</button><button data-dbg-act="clearSpells">Efektleri temizle</button></div>
       </div>
+      <div class="dbg-section"><h4>Uçuş</h4>
+        <div class="dbg-buttons"><button data-dbg-act="broom">Süpürgeye bin / in</button><button data-dbg-act="allBrooms">Tüm süpürgeler</button><button data-dbg-act="nextBroom">Sonraki süpürge</button><button data-dbg-act="galleons">+100 Galleon</button></div>
+        <div class="dbg-buttons">${RACES.map((r) => `<button data-dbg-race="${r.id}">Yarış: ${r.name}</button>`).join('')}</div>
+        <div class="dbg-buttons"><button data-dbg-act="quidditch">Quidditch maçı</button><button data-dbg-act="snitch">Altın Top'u sal</button><button data-dbg-act="endMatch">Maçı bitir</button></div>
+      </div>
       <div class="dbg-section"><h4>Savaş</h4>
         <div class="dbg-buttons">${Object.entries(ENEMIES).map(([k, e]) => `<button data-dbg-enemy="${k}">${e.name}</button>`).join('')}</div>
         <div class="dbg-buttons"><button data-dbg-act="killEnemies">Düşmanları yok et</button><button data-dbg-act="staggerEnemies">Hepsini sersemlet</button><button data-dbg-act="bossPhase">Boss: sonraki aşama</button></div>
@@ -116,6 +122,7 @@ export class Debug {
       else if (b.dataset.dbgWeather) this.p.actions.weather(b.dataset.dbgWeather);
       else if (b.dataset.dbgAct) this.p.actions[b.dataset.dbgAct]?.();
       else if (b.dataset.dbgEnemy) this.p.actions.enemy(b.dataset.dbgEnemy);
+      else if (b.dataset.dbgRace) this.p.actions.race(b.dataset.dbgRace);
       else if (b.dataset.dbgAnim) this.p.actions.anim(b.dataset.dbgAnim, b.dataset.dbgLoop === '1');
       else if (b.dataset.dbgExpr) this.p.actions.expression(b.dataset.dbgExpr);
       else if (b.dataset.dbgHouse) this.p.actions.house(b.dataset.dbgHouse);

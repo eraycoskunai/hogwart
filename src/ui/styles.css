@@ -458,3 +458,39 @@ table.binds td { padding: 3px 0; }
   .cb-banner { font-size: 18px; white-space: normal; text-align: center; width: 90vw; }
   .cb-count { font-size: 60px; }
 }
+
+/* ------------------------------------------------------------ flight HUD */
+.flight-hud { position: absolute; inset: 0; pointer-events: none; }
+.fl-gauge { position: absolute; right: 24px; bottom: 150px; width: 170px; text-align: right; opacity: 0; transition: opacity 0.3s; text-shadow: 0 1px 3px #000; }
+.fl-gauge.show { opacity: 1; }
+.fl-speed { font-size: 38px; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+.fl-gauge small { margin-left: 4px; color: #e8d8b8; }
+.fl-alt, .fl-broom { font-size: 12px; color: #d8ccb0; letter-spacing: 0.05em; }
+.fl-boost { margin: 5px 0 3px auto; width: 150px; height: 6px; border-radius: 4px; background: rgba(10, 8, 6, 0.7); border: 1px solid rgba(201, 162, 74, 0.45); overflow: hidden; }
+.fl-boost i { display: block; height: 100%; background: linear-gradient(90deg, #c8702a, #ffd27a); transform-origin: left; }
+.fl-boost.on i { box-shadow: 0 0 8px #ffb040; }
+.fl-race { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); text-align: center; opacity: 0; transition: opacity 0.3s; text-shadow: 0 1px 3px #000; }
+.fl-race.show { opacity: 1; }
+.fl-race-name { font-variant: small-caps; letter-spacing: 0.1em; color: #e8d8b8; }
+.fl-race-time { font-size: 34px; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+.fl-race-info { font-size: 13px; color: #d8ccb0; }
+.fl-score { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity 0.3s; text-shadow: 0 1px 3px #000; }
+.fl-score.show { opacity: 1; }
+.fl-team { padding: 3px 10px; border-radius: 4px; font-variant: small-caps; letter-spacing: 0.06em; border: 1px solid rgba(255, 255, 255, 0.25); }
+.fl-pts { font-size: 26px; color: var(--gold-bright); font-variant-numeric: tabular-nums; }
+.fl-clock { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 4px; color: #d8ccb0; }
+.fl-marker { --c: #ffd35a; position: absolute; left: 0; top: 0; display: none; }
+.fl-marker::before { content: ''; position: absolute; left: -9px; top: -9px; width: 14px; height: 14px; border: 2px solid var(--c); border-radius: 50%; box-shadow: 0 0 10px var(--c); }
+.fl-marker span { position: absolute; left: 12px; top: -8px; font-size: 12px; color: var(--c); white-space: nowrap; text-shadow: 0 1px 2px #000; }
+.fl-arrow { position: absolute; left: -2px; top: -2px; width: 0; height: 0; display: none; }
+.fl-marker.off .fl-arrow { display: block; border-left: 14px solid var(--c); border-top: 7px solid transparent; border-bottom: 7px solid transparent; transform-origin: 0 50%; margin-top: -5px; }
+.fl-count { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); font-size: 84px; color: var(--gold-bright); text-shadow: 0 0 30px rgba(255, 190, 80, 0.8), 0 3px 6px #000; opacity: 0; }
+.fl-count.show { animation: cb-count 0.9s ease-out forwards; }
+.fl-banner { position: absolute; left: 50%; top: 24%; transform: translateX(-50%) scale(0.9); font-size: 22px; letter-spacing: 0.06em; color: var(--gold-bright); text-shadow: 0 0 14px rgba(255, 200, 90, 0.7), 0 2px 4px #000; opacity: 0; transition: opacity 0.2s, transform 0.2s; white-space: nowrap; }
+.fl-banner.show { opacity: 1; transform: translateX(-50%) scale(1); }
+.fl-banner[data-kind='gold'] { font-size: 26px; }
+.fl-banner[data-kind='bad'] { color: #ffb0a0; text-shadow: 0 0 14px rgba(255, 90, 60, 0.7), 0 2px 4px #000; }
+@media (max-width: 640px) {
+  .fl-gauge { bottom: 130px; right: 12px; }
+  .fl-banner { white-space: normal; width: 90vw; text-align: center; font-size: 17px; }
+}

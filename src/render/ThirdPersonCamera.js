@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import { CAMERA } from '../data/camera.js';
+import { FLIGHT } from '../data/flight.js';
 
 /**
  * @typedef {Object} LockTarget
@@ -58,6 +59,8 @@ export class ThirdPersonCamera {
     this.aimBlend = 0;
     this.sprinting = false;
     this.crouchBlend = 0;
+    /** 0…1 broom-flight framing (farther, speed FOV, banking). */
+    this.flightBlend = 0;
 
     this.pivot = new THREE.Vector3();
     this._pivotInit = false;
@@ -276,16 +279,19 @@ export class ThirdPersonCamera {
     this._shoulderBlend += (this.shoulderSide - this._shoulderBlend) * damp(C.shoulderSwapSpeed, dt);
     this.aimBlend += ((this.aiming ? 1 : 0) - this.aimBlend) * damp(C.aimBlendSpeed, dt);
     this.crouchBlend += ((state.crouching ? 1 : 0) - this.crouchBlend) * damp(10, dt);
+    this.flightBlend += ((state.flying ? 1 : 0) - this.flightBlend) * damp(3, dt);
+    const FC = FLIGHT.camera;
+    const fb = this.flightBlend;
 
     // Pivot follows the player: fast horizontally, softer vertically (steps, landings).
-    const pivotH = THREE.MathUtils.lerp(C.pivotHeight, C.crouchPivotHeight, this.crouchBlend);
+    const pivotH = THREE.MathUtils.lerp(THREE.MathUtils.lerp(C.pivotHeight, C.crouchPivotHeight, this.crouchBlend), FC.pivotHeight, fb);
     _tmp.set(feet.x, feet.y + pivotH, feet.z);
     if (!this._pivotInit) {
       this.pivot.copy(_tmp);
       this._pivotInit = true;
     }
     const hk = damp(C.horizontalFollow, dt);
-    const vk = damp(C.verticalFollow, dt);
+    const vk = damp(THREE.MathUtils.lerp(C.verticalFollow, FC.verticalFollow, fb), dt);
     this.pivot.x += (_tmp.x - this.pivot.x) * hk;
     this.pivot.z += (_tmp.z - this.pivot.z) * hk;
     this.pivot.y += (_tmp.y - this.pivot.y) * vk;
@@ -300,8 +306,8 @@ export class ThirdPersonCamera {
     _right.set(cy, 0, -sy);
     _up.crossVectors(_right, _fwd).normalize();
 
-    const shoulder = THREE.MathUtils.lerp(C.shoulderOffset, C.aimShoulderOffset, this.aimBlend) * this._shoulderBlend;
-    const desiredDist = THREE.MathUtils.lerp(C.distance, C.aimDistance, this.aimBlend);
+    const shoulder = THREE.MathUtils.lerp(C.shoulderOffset, C.aimShoulderOffset, this.aimBlend) * this._shoulderBlend * (1 - fb * 0.8);
+    const desiredDist = THREE.MathUtils.lerp(THREE.MathUtils.lerp(C.distance, C.aimDistance, this.aimBlend), FC.distance, fb);
 
     // 1) pivot → shoulder point (so the offset never pokes through a wall).
     const origin = _origin.copy(this.pivot).addScaledVector(_up, C.pivotUp);
@@ -334,6 +340,7 @@ export class ThirdPersonCamera {
     _tmp.copy(cam.position).add(_fwd);
     cam.up.set(0, 1, 0);
     cam.lookAt(_tmp);
+    if (fb > 0.01 && state.roll) cam.rotateZ(state.roll * FC.roll * fb);
 
     // Shake (trauma²).
     this._shakeTime += dt;
@@ -349,7 +356,8 @@ export class ThirdPersonCamera {
 
     // FOV: base setting + aim zoom + sprint kick.
     const base = this.settings.get('fov');
-    const targetFov = base + C.aimFovDelta * this.aimBlend + (this.sprinting && state.speed > 5 ? C.sprintFovDelta : 0);
+    const flightKick = Math.min(FC.maxFovKick, Math.max(0, (state.speed ?? 0) - 8) * FC.fovPerSpeed) * fb;
+    const targetFov = base + C.aimFovDelta * this.aimBlend + (this.sprinting && state.speed > 5 && fb < 0.5 ? C.sprintFovDelta : 0) + flightKick;
     this._fov += (targetFov - this._fov) * damp(C.fovLerp, dt);
     cam.fov = this._fov;
 

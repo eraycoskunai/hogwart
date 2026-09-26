@@ -37,6 +37,13 @@ import { SpellHUD } from './ui/SpellHUD.js';
 import { EncounterManager } from './gameplay/combat/EncounterManager.js';
 import { DuelClub } from './gameplay/combat/DuelClub.js';
 import { CombatHUD } from './ui/CombatHUD.js';
+import { Inventory } from './gameplay/Inventory.js';
+import { BroomFlight } from './gameplay/flight/BroomFlight.js';
+import { BroomShop } from './gameplay/flight/BroomShop.js';
+import { RaceManager } from './gameplay/flight/RaceManager.js';
+import { QuidditchMatch } from './gameplay/flight/QuidditchMatch.js';
+import { FlightHUD } from './ui/FlightHUD.js';
+import { ECONOMY, BROOMS } from './data/flight.js';
 import { COMBAT, BOSS } from './data/combat.js';
 import { SPELL_WHEEL, MASTERY } from './data/spells.js';
 import { describeCode } from './data/input.js';
@@ -183,6 +190,13 @@ class Game {
       targets: this.spellTargets, bus, player: this.player, interactions: this.interactions, atmosphere: this.atmosphere,
       settings: this.settings, time: this.time, state: this.worldState,
     });
+    // Brooms, races and Quidditch.
+    this.inventory = new Inventory(bus);
+    const particles = { glow: this.spells.glow, smoke: this.spells.smoke };
+    this.flight = new BroomFlight({ bus, player: this.player, inventory: this.inventory, scene: this.scene, cameraRig: this.cameraRig, particles });
+    this.races = new RaceManager({ bus, player: this.player, flight: this.flight, inventory: this.inventory, physics: this.physics, scene: this.scene, interactions: this.interactions, particles, cameraRig: this.cameraRig });
+    this.shop = null;
+    this.match = null;
     this._enterCombatRegion();
 
     this._progress('Arayüz yükleniyor…', 0.9);
@@ -190,6 +204,7 @@ class Game {
     this.hud = new HUD(document.getElementById('hud'), bus, this.input);
     this.spellHud = new SpellHUD(document.getElementById('hud'), bus);
     this.combatHud = new CombatHUD(document.getElementById('hud'), bus);
+    this.flightHud = new FlightHUD(document.getElementById('hud'), bus);
     this.pauseMenu = new PauseMenu(document.getElementById('menu'), {
       settings: this.settings,
       input: this.input,
@@ -394,7 +409,11 @@ class Game {
     if (input.pressed('shoulderSwap')) this.cameraRig.swapShoulder();
     const lockTargets = this._lockTargets();
     if (input.pressed('lockOn') && !this.player.dead) this.cameraRig.toggleLock(lockTargets, this.player.position);
-    if (input.pressed('dodge')) this._dodge();
+    if (input.pressed('broom')) this.flight.toggle();
+    if (input.pressed('dodge')) {
+      if (this.flight.active) this.flight.roll(Math.sign(this.player.intent.axis.x));
+      else this._dodge();
+    }
 
     // "Press E" prompt for the nearest door / portrait / object.
     const p = this.player;
@@ -409,7 +428,7 @@ class Game {
 
     // Magic: the wheel and gesture drawing take over the mouse.
     // No casting while stunned or mid-roll.
-    const busy = this.player.stunned > 0 || this.player.dodging > 0;
+    const busy = this.player.stunned > 0 || this.player.dodging > 0 || this.flight.active;
     if (busy) this.caster.cancelShield();
     const mouseTaken = busy ? false : this.caster.handleInput(input, this.time.unscaledDt);
     if (!mouseTaken) this.cameraRig.handleLook(input, this.time.unscaledDt, lockTargets, this.player.position);
@@ -442,15 +461,36 @@ class Game {
 
   /** Hook the combat systems to the freshly loaded region. */
   _enterCombatRegion() {
-    this.combat.setRegion(this.room);
-    this.duel = this.room.id === 'castle'
-      ? new DuelClub({ mgr: this.combat, room: this.room, player: this.player, caster: this.caster, bus, interactions: this.interactions, state: this.worldState, ui: { say: (n, t) => this.hud?.say(n, t) }, cameraRig: this.cameraRig })
+    const room = this.room;
+    this.combat.setRegion(room);
+    this.duel = room.id === 'castle'
+      ? new DuelClub({ mgr: this.combat, room, player: this.player, caster: this.caster, bus, interactions: this.interactions, state: this.worldState, ui: { say: (n, t) => this.hud?.say(n, t) }, cameraRig: this.cameraRig })
       : null;
+    // Flight: allowed outdoors; the shop and the pitch live on the grounds.
+    this.flight.allowed = !!room.allowFlight;
+    this.races.setRegion(room);
+    if (room.id === 'grounds') {
+      const heightAt = (x, z) => room.heightAt(x, z);
+      this.shop = new BroomShop({
+        scene: this.scene, physics: this.physics, library: this.library, preset: this.renderer.preset, bus, interactions: this.interactions, inventory: this.inventory, heightAt,
+        choose: (t, x, o) => this._choose(t, x, o), say: (n, t) => this.hud?.say(n, t), notice: (t) => this.hud?.notice(t),
+      });
+      this.match = new QuidditchMatch({
+        bus, player: this.player, flight: this.flight, inventory: this.inventory, scene: this.scene, particles: { glow: this.spells.glow }, cameraRig: this.cameraRig,
+        settings: this.settings, heightAt, house: () => this.characterData.house, interactions: this.interactions, busy: () => !!this.races.race,
+      });
+    }
   }
 
   _leaveCombatRegion() {
     this.duel?.dispose();
     this.duel = null;
+    this.flight.reset();
+    this.races.clear();
+    this.shop?.dispose();
+    this.shop = null;
+    this.match?.dispose();
+    this.match = null;
     this.combat.clear();
     this.player.clearCombat();
     this.player.nonLethal = false;
@@ -506,6 +546,19 @@ class Game {
       if (this.cameraRig.lockTarget === enemy) this.cameraRig.releaseLock();
     });
     bus.on('player:stunned', () => this.cameraRig.addTrauma(0.35));
+    // Money and flight feedback.
+    bus.on('inventory:galleons', ({ amount, total, reason }) => this.hud.notice(`${amount > 0 ? '+' : ''}${amount} Galleon${reason ? ` · ${reason}` : ''} (kese: ${total})`));
+    bus.on('combat:killed', ({ enemy }) => {
+      const b = ECONOMY.bounty[enemy.type];
+      if (b) this.inventory.earn(b);
+    });
+    bus.on('duel:result', ({ won }) => won && this.inventory.earn(ECONOMY.duelWin, 'Düello galibiyeti'));
+    bus.on('flight:denied', ({ reason }) => this.hud.toast(reason, SPELL_TOAST));
+    bus.on('flight:crash', ({ speed }) => this.cameraRig.addTrauma(Math.min(0.9, speed / 30)));
+    bus.on('flight:dismounted', ({ reason }) => {
+      if (reason === 'crash') this.hud.toast('Süpürgeden düştün!', SPELL_TOAST);
+    });
+    bus.on('flight:mounted', () => this.cameraRig.releaseLock());
     bus.on('player:respawned', ({ position }) => this.cameraRig.snapTo(position, this.player.yaw));
     bus.on('input:pointerLock', ({ locked }) => {
       if (locked) this._hadPointerLock = true;
@@ -630,6 +683,7 @@ class Game {
     this.characterData.wand = this.player.character.data.wand;
     if (this._creatorMode === 'new') {
       this.playtime = 0;
+      this.inventory.reset();
       this.player.teleport(this.room.spawn.position, this.room.spawn.yaw);
       this.cameraRig.snapTo(this.room.spawn.position, this.room.spawn.yaw);
     }
@@ -680,6 +734,7 @@ class Game {
       character: this.characterData,
       player: this.player.serialize(),
       spells: this.caster.serialize(),
+      inventory: this.inventory.serialize(),
       camera: { yaw: this.cameraRig.yaw, pitch: this.cameraRig.pitch },
     };
   }
@@ -719,6 +774,8 @@ class Game {
     }
     this.player.deserialize(d.player);
     this.caster.deserialize(d.spells);
+    this.flight.reset();
+    this.inventory.deserialize(d.inventory);
     this.room.onTeleport(this.player.position);
     this.clock.deserialize(d.clock);
     this.atmosphere.weather.deserialize(d.weather);
@@ -773,6 +830,7 @@ class Game {
             'Dinamik (uyanık)': `${p.dynamics} (${p.awake})`,
             Kinematik: p.kinematics,
           },
+          Uçuş: { ...this.flight.stats, ...this.races.stats, ...(this.match?.stats ?? {}), Kese: `${this.inventory.galleons} Galleon · süpürgeler: ${this.inventory.brooms.map((b) => BROOMS[b].name).join(', ')}` },
           Savaş: { Zorluk: this.settings.get('difficulty'), ...this.combat.stats, ...(this.duel?.stats ?? {}), 'Oyuncu durumu': `sersem ${fmt(this.player.stunned, 1)} · yavaş ${fmt(this.player.slowed, 1)} · kaçınma ${fmt(this.player.dodging, 2)}` },
           Büyüler: { ...this.caster.stats, 'Mermi / kırık / buz': `${this.spells.stats.projectiles} / ${this.spells.stats.broken} / ${this.spells.stats.floes}`, 'Partikül (toplam)': this.spells.stats.emitted },
           Oyuncu: {
@@ -811,6 +869,22 @@ class Game {
           at.y = this.combat.groundAt(at.x, at.z, p.y) + 0.05;
           this.combat.spawnEnemy(type, at, zone);
         },
+        broom: () => this.flight.toggle(),
+        allBrooms: () => {
+          for (const id of Object.keys(BROOMS)) if (!this.inventory.owns(id)) this.inventory.brooms.push(id);
+          this.inventory.equip(Object.keys(BROOMS).at(-1));
+        },
+        nextBroom: () => {
+          const list = this.inventory.brooms;
+          this.inventory.equip(list[(list.indexOf(this.inventory.broom) + 1) % list.length]);
+        },
+        galleons: () => this.inventory.earn(100, 'hata ayıklama'),
+        race: (id) => {
+          if (this.room.id === 'grounds') this.races.start(id);
+        },
+        quidditch: () => this.match?.start(),
+        snitch: () => this.match?.releaseSnitch(),
+        endMatch: () => this.match?.abort(),
         killEnemies: () => {
           for (const e of this.combat.enemies) if (!e.dead && e.type !== 'duelist') e.die();
         },
@@ -988,6 +1062,8 @@ class Game {
     this.spells.fixedUpdate(dt);
     this.combat.fixedUpdate(dt);
     this.duel?.fixedUpdate(dt);
+    this.races.fixedUpdate(dt);
+    this.match?.fixedUpdate(dt);
     this.triggers.update(c.position, c.height, c.radius);
     if (c.swimming && !this._deepWarned && this.room.waterDepth(c.position.x, c.position.z) > LAKE.deepWarning) {
       this._deepWarned = true;
@@ -1013,7 +1089,8 @@ class Game {
     const w = this.atmosphere.weather.wind;
     _wind.set(w.x, 0, w.y);
     if (!this.fsm.is('boot')) this._updateViewTargets();
-    player.render(dt, alpha, this.fsm.is('boot') ? 10 : this.cameraRig.distance, { camera: this.camera, wind: _wind });
+    const clothWind = this.flight.active ? this.flight.clothWind(_v).add(_wind) : _wind;
+    player.render(dt, alpha, this.fsm.is('boot') ? 10 : this.cameraRig.distance, { camera: this.camera, wind: clothWind });
     _head.copy(player.visualPosition).setY(player.visualPosition.y + player.character.height * 0.93);
     this.room.updateCharacters(dt, { camera: this.camera, player: player.visualPosition, playerHead: _head, wind: _wind });
     this.physics.syncVisuals(alpha);
@@ -1021,18 +1098,23 @@ class Game {
 
     if (this.fsm.is('cinematic')) this.cinematic.update(dt);
     else if (!this.fsm.is('boot')) {
-      this.cameraRig.update(dt, player.visualPosition, { crouching: player.controller.crouching, speed: player.speed });
+      const fl = this.flight;
+      this.cameraRig.update(dt, player.visualPosition, { crouching: player.controller.crouching, speed: fl.active ? fl.velocity.length() : player.speed, flying: fl.active, roll: fl.bank });
     }
 
     if (this.fsm.is('play') || this.fsm.is('cinematic')) this.caster.update(dt);
     const env = { camera: this.camera, wind: _wind, playerHead: _head };
     this.combat.frame(dt, env);
     this.duel?.render(dt, env);
+    this.races.frame(dt);
+    this.match?.frame(dt);
+    this.shop?.render(dt, { ...env, player: player.visualPosition });
     this.spells.update(dt, this.camera);
     this.spellHud.update(dt, this.caster);
     this.room.render(this.time.elapsed, this.atmosphere.night, alpha);
     this.room.frame(dt, this.camera, { night: this.atmosphere.night, hour: this.clock.hour, wind: this.atmosphere.weather.wind, player: player.visualPosition, playerHead: _head });
     this.debugDraw.update(player.controller, player.visualPosition);
+    this.flightHud.update(dt, { flight: this.flight, race: this.races.hud, match: this.match?.hud ?? null, camera: this.camera, width: this.renderer.width, height: this.renderer.height, player });
     this.combatHud.update(dt, {
       enemies: this.combat.enemies, camera: this.camera, width: this.renderer.width, height: this.renderer.height,
       player, chill: this.combat.chill, focus: this.duel?.focus ?? (this.combat.boss?.engaged ? this.combat.boss : null),

@@ -48,6 +48,8 @@ export class HogwartsGrounds {
     this.name = GROUNDS.name;
     this.fogScale = GROUNDS.fogScale;
     this.outdoor = true;
+    /** Brooms may be ridden here. */
+    this.allowFlight = true;
     this.menuOrbit = GROUNDS.menuOrbit;
     this.root = new THREE.Group();
     this.root.name = 'HogwartsGrounds';

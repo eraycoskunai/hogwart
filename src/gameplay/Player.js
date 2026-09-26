@@ -82,6 +82,8 @@ export class Player {
     this._dodgeCd = 0;
     /** Duels: health stops at 1 and the player yields instead of dying. */
     this.nonLethal = false;
+    /** Active ride (broom) that takes over movement, or null. */
+    this.mount = null;
 
     /** Facing yaw of the body (radians, 0 = -Z). */
     this.yaw = 0;
@@ -92,6 +94,8 @@ export class Player {
     this.intent = {
       move: new THREE.Vector3(),
       moveMag: 0,
+      /** Raw stick / keys (x right, y forward) for vehicles. */
+      axis: { x: 0, y: 0 },
       sprint: false,
       walk: false,
       crouch: false,
@@ -153,13 +157,16 @@ export class Player {
       this.controller.jumpHeld = false;
       return;
     }
-    if (this.stunned > 0) {
+    if (this.stunned > 0 && !this.mount) {
       it.move.set(0, 0, 0);
       it.moveMag = 0;
+      it.axis.x = it.axis.y = 0;
       this.controller.jumpHeld = false;
       return;
     }
     const axis = input.moveAxis();
+    it.axis.x = axis.x;
+    it.axis.y = axis.y;
     cam.flatForward(_fwd);
     cam.flatRight(_right);
     it.move.set(0, 0, 0).addScaledVector(_fwd, axis.y).addScaledVector(_right, axis.x);
@@ -171,7 +178,7 @@ export class Player {
     it.aim = input.down('aim');
     it.vertical = (input.down('jump') ? 1 : 0) - (input.down('crouch') ? 1 : 0);
 
-    if (input.pressed('jump') && !this.controller.noclip) this.controller.requestJump();
+    if (input.pressed('jump') && !this.controller.noclip && !this.mount) this.controller.requestJump();
     this.controller.jumpHeld = input.down('jump');
 
     if (this.controller.noclip) {
@@ -219,6 +226,18 @@ export class Player {
     if (this.stunned > 0) this.stunned -= dt;
     if (this.slowed > 0) this.slowed -= dt;
     if (this._dodgeCd > 0) this._dodgeCd -= dt;
+    if (this.mount) {
+      this.mount.fixedUpdate(dt);
+      this._turnRate = angleDelta(this._prevYaw, this.yaw) / dt;
+      this._prevGround.copy(c.position);
+      if (c.position.y < PHYSICS.killPlaneY) this.kill('void');
+      const loco = this.mount ? 'broom' : this._computeLocomotion();
+      if (loco !== this.locomotion) {
+        this.locomotion = loco;
+        this.bus.emit('player:state', { state: loco });
+      }
+      return;
+    }
     c.wantCrouch = this.intent.crouch && !c.noclip && !c.swimming && this.stunned <= 0;
     c.waterLevel = this.waterLevelAt ? this.waterLevelAt(c.position.x, c.position.z) : -Infinity;
     if (this.dodging > 0) {
@@ -274,7 +293,7 @@ export class Player {
   /** Can a dodge start now? */
   get canDodge() {
     const c = this.controller;
-    return !this.dead && this.stunned <= 0 && this.dodging <= 0 && this._dodgeCd <= 0 && c.grounded && !c.swimming && !c.noclip;
+    return !this.dead && !this.mount && this.stunned <= 0 && this.dodging <= 0 && this._dodgeCd <= 0 && c.grounded && !c.swimming && !c.noclip;
   }
 
   /**
@@ -302,7 +321,8 @@ export class Player {
     if (this.dead || this.godMode || !(t > 0)) return;
     this.stunned = Math.max(this.stunned, t);
     this.dodging = 0;
-    this.animator.play('stun');
+    // On a broom the seated pose stays: just a flinch.
+    this.animator.play(this.mount ? 'hit' : 'stun');
     this.bus.emit('player:stunned', { time: t });
   }
 
@@ -423,9 +443,10 @@ export class Player {
     if (this._pain > 0) this._pain -= dt;
     this.face.setExpression(this.dead ? 'pain' : this._pain > 0 ? 'pain' : 'neutral');
     this.face.update(dt);
+    if (this.mount) this.mount.pose(dt, root, env.camera);
     this.animator.update(dt, {
-      speed: this.dead ? 0 : this.speed,
-      grounded: c.grounded || c.noclip,
+      speed: this.dead || this.mount ? 0 : this.speed,
+      grounded: (c.grounded || c.noclip) && !this.mount,
       vy: c.velocity.y,
       crouching: c.crouching,
       aiming: this.intent.aim && !this.dead,
@@ -436,7 +457,7 @@ export class Player {
       swimming: c.swimming && !this.dead,
       lookTarget: this.dead ? null : this.lookTarget,
       aimTarget: this.aimTarget,
-      ground: c.noclip ? null : this._ground,
+      ground: c.noclip || this.mount ? null : this._ground,
     });
     this.character.update(dt, { camera: env.camera, wind: env.wind, groundY: c.grounded ? _vis.y : -Infinity });
     const fade = THREE.MathUtils.clamp((cameraDistance - FADE.start) / FADE.range, 0, 1);
