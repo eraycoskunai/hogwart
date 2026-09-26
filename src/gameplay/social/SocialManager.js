@@ -168,7 +168,8 @@ export class SocialManager {
   render(dt, env) {
     const streamer = this.region?.streamer;
     const visible = (p) => (streamer ? streamer.isVisibleAt(p) : true);
-    for (const c of this.companions.values()) c.render(dt, { ...env, visible });
+    const player = env.player ?? this.o.player.visualPosition;
+    for (const c of this.companions.values()) c.render(dt, { ...env, player, visible });
   }
 
   // ------------------------------------------------------- interaction
